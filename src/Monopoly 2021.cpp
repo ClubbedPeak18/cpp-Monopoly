@@ -113,6 +113,9 @@ struct BoardTile
 
 	int RGB[3];
 	int hasColor;
+
+	int PosX;
+	int PosY;
 };
 
 struct Agents
@@ -126,6 +129,9 @@ struct Agents
 	int hasRolled;
 	int hasAI;
 	int MonopoliesOwned[8]={0};	//dirty trick to trace Completed Monopolies, sub 1 to get to LookUpTable array index
+
+	int PosX;
+	int PosY;
 
 	sf::RectangleShape AgentSprite;
 	sf::Texture AgentTexture;
@@ -152,9 +158,9 @@ struct Element
 
 struct TradeStruct
 {
-	int target_GetProp[30];
+	int target_GetProp[30]={0};
 	int target_GetFunds;
-	int player_GetProp[30];
+	int player_GetProp[30]={0};
 	int player_Getfunds;
 	int T_GP_Count;		//index # of props in array
 	int P_GP_Count;
@@ -1114,6 +1120,13 @@ void StartUpPropertyDeed(void)
 	Offer.P_GP_Count=0;		//zeros count before game start, sanitize index
 	Offer.T_GP_Count=0;
 
+	//Backup Deed positon interal to property struct
+	for(i=0;i<40;i++)
+	{
+		PropertyDeed[i].PosX=PropertyDeed[i].TileOutline.getPosition().x;
+		PropertyDeed[i].PosY=PropertyDeed[i].TileOutline.getPosition().y;
+	}
+
 	
 }
 
@@ -1531,20 +1544,32 @@ void DrawTradeBoard(void)
 		}
 	}
 
-	//only render tradable properties, Normal, Util, Railroad
+	//only render tradable properties, Normal, Util, Railroad,	Owned only by the two players interacting in the trade
 	for(i=0;i<40;i++)
 	{
 		if(Property[i].Type==0||Property[i].Type==1||Property[i].Type==2)
 		{
-			if(Property[i].Owner!=ActivePlayer)
+			if(Property[i].Owner==TargetPlayer || Property[i].Owner==ActivePlayer)
 			{
-				//PropertyDeed[i].TileBlockColor.move(400,0);		//move deeds to the left by 400, but dont change set position
-				//PropertyDeed[i].TileOutline.move(400,0);
-			}
-			window.draw(PropertyDeed[i].TileOutline);
-			window.draw(PropertyDeed[i].TileBlockColor);
-			window.draw(PropertyDeed[i].TileNameText);
+				if(PropertyDeed[i].TileOutline.getPosition.x!=PropertyDeed[i].PosX)
+				{
+					PropertyDeed[i].TileOutline.setPosition.x=PropertyDeed[i].PosX;
+					PropertyDeed[i].TileBlockColor.setPosition.x=PropertyDeed[i].PosX;
+					PropertyDeed[i].TileNameText.setPosition.x=PropertyDeed[i].PosX;
+				}
 
+				if(Property[i].Owner==TargetPlayer)
+				{
+					//shift Target's Properties to the right, but leave the base position alone
+					PropertyDeed[i].TileOutline.setPosition(PropertyDeed[i].PosX+800,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileBlockColor.setPosition(PropertyDeed[i].PosX+800,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileNameText.setPosition(PropertyDeed[i].PosX+800,PropertyDeed[i].PosY);
+				}
+
+				window.draw(PropertyDeed[i].TileOutline);
+				window.draw(PropertyDeed[i].TileBlockColor);
+				window.draw(PropertyDeed[i].TileNameText);
+			}
 		}
 	}
 
@@ -2524,11 +2549,16 @@ void TradeOfferBuilder(int DeedClicked)
 	//exit, done		> Reset everything		|	send offer to AI
 
 //
+	int i=0;
+	int removeVal=DeedClicked;
+	int removeIndex=0;
+
 
 	DeedClicked-=200;
 
 	if(PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 	{
+		//Add property to list
 		if(Property[DeedClicked].Owner==ActivePlayer&&PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 		{
 			Offer.target_GetProp[Offer.T_GP_Count]=DeedClicked;
@@ -2547,12 +2577,23 @@ void TradeOfferBuilder(int DeedClicked)
 	}
 	else
 	{
+		//Remove property from list
 		if(Property[DeedClicked].Owner==ActivePlayer&&PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Red)
 		{
-			Offer.target_GetProp[Offer.T_GP_Count]=-1;
-			Offer.T_GP_Count--;
 			PropertyDeed[DeedClicked].TileOutline.setOutlineColor(sf::Color::Black);
 			printf("Prop removed to offer\n");
+
+			while(Offer.target_GetProp[removeIndex]!=removeVal)
+			{
+				removeIndex++;
+			}
+
+			while(removeIndex<T_GP_Count)
+			{
+				Offer.target_GetProp[removeIndex]=Offer.target_GetProp[removeIndex+1];
+				removeIndex++;
+			}
+			Offer.T_GP_Count--;
 		}
 
 		if(Property[DeedClicked].Owner==TargetPlayer&&PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Blue)
@@ -2561,12 +2602,36 @@ void TradeOfferBuilder(int DeedClicked)
 			Offer.P_GP_Count--;
 			PropertyDeed[DeedClicked].TileOutline.setOutlineColor(sf::Color::Black);
 			printf("Prop removed to offer\n");
+
+			while(Offer.target_GetProp[removeIndex]!=removeVal)
+			{
+				removeIndex++;
+			}
+
+			while(removeIndex<P_GP_Count)
+			{
+				Offer.player_GetProp[removeIndex]=Offer.player_GetProp[removeIndex+1];
+				removeIndex++;
+			}
+			Offer.P_GP_Count--;
 		}
 	}
 
 
+	//degug read out for lists
+	printf("Target Get List:");
+	for(i=0;i<T_GP_Count;i++)
+	{
+		printf(" %d",Offer.target_GetProp[i])
+	}
+	printf("\n");
 
-
+	printf("Player Get List:");
+	for(i=0;i<P_GP_Count;i++)
+	{
+		printf(" %d",Offer.player_GetProp[i])
+	}
+	printf("\n");
 
 
 

@@ -1551,19 +1551,22 @@ void DrawTradeBoard(void)
 		{
 			if(Property[i].Owner==TargetPlayer || Property[i].Owner==ActivePlayer)
 			{
-				if(PropertyDeed[i].TileOutline.getPosition.x!=PropertyDeed[i].PosX)
+				if(PropertyDeed[i].TileOutline.getPosition().x!=PropertyDeed[i].PosX)
 				{
-					PropertyDeed[i].TileOutline.setPosition.x=PropertyDeed[i].PosX;
-					PropertyDeed[i].TileBlockColor.setPosition.x=PropertyDeed[i].PosX;
-					PropertyDeed[i].TileNameText.setPosition.x=PropertyDeed[i].PosX;
+					PropertyDeed[i].TileOutline.setPosition(PropertyDeed[i].PosX,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileBlockColor.setPosition(PropertyDeed[i].PosX,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileNameText.setPosition(PropertyDeed[i].TileBlockColor.getPosition().x,
+						PropertyDeed[i].TileBlockColor.getPosition().y+PropertyDeed[i].TileBlockColor.getSize().y);
 				}
 
 				if(Property[i].Owner==TargetPlayer)
 				{
 					//shift Target's Properties to the right, but leave the base position alone
-					PropertyDeed[i].TileOutline.setPosition(PropertyDeed[i].PosX+800,PropertyDeed[i].PosY);
-					PropertyDeed[i].TileBlockColor.setPosition(PropertyDeed[i].PosX+800,PropertyDeed[i].PosY);
-					PropertyDeed[i].TileNameText.setPosition(PropertyDeed[i].PosX+800,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileOutline.setPosition(PropertyDeed[i].PosX+600,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileBlockColor.setPosition(PropertyDeed[i].PosX+600,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileNameText.setPosition(PropertyDeed[i].PosX+600,PropertyDeed[i].PosY);
+					PropertyDeed[i].TileNameText.setPosition(PropertyDeed[i].TileBlockColor.getPosition().x,
+						PropertyDeed[i].TileBlockColor.getPosition().y+PropertyDeed[i].TileBlockColor.getSize().y);
 				}
 
 				window.draw(PropertyDeed[i].TileOutline);
@@ -2549,12 +2552,11 @@ void TradeOfferBuilder(int DeedClicked)
 	//exit, done		> Reset everything		|	send offer to AI
 
 //
+	DeedClicked-=200;
+
 	int i=0;
 	int removeVal=DeedClicked;
 	int removeIndex=0;
-
-
-	DeedClicked-=200;
 
 	if(PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 	{
@@ -2569,7 +2571,7 @@ void TradeOfferBuilder(int DeedClicked)
 
 		if(Property[DeedClicked].Owner==TargetPlayer&&PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 		{
-			Offer.player_GetProp[Offer.T_GP_Count]=DeedClicked;
+			Offer.player_GetProp[Offer.P_GP_Count]=DeedClicked;
 			Offer.P_GP_Count++;
 			PropertyDeed[DeedClicked].TileOutline.setOutlineColor(sf::Color::Blue);
 			printf("Prop add to offer\n");
@@ -2587,8 +2589,9 @@ void TradeOfferBuilder(int DeedClicked)
 			{
 				removeIndex++;
 			}
+			printf("Deed Clicked:%d | RemoveIndex %d\n",DeedClicked,removeIndex);
 
-			while(removeIndex<T_GP_Count)
+			while(removeIndex<Offer.T_GP_Count)
 			{
 				Offer.target_GetProp[removeIndex]=Offer.target_GetProp[removeIndex+1];
 				removeIndex++;
@@ -2598,17 +2601,15 @@ void TradeOfferBuilder(int DeedClicked)
 
 		if(Property[DeedClicked].Owner==TargetPlayer&&PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Blue)
 		{
-			Offer.player_GetProp[Offer.T_GP_Count]=-1;
-			Offer.P_GP_Count--;
 			PropertyDeed[DeedClicked].TileOutline.setOutlineColor(sf::Color::Black);
 			printf("Prop removed to offer\n");
 
-			while(Offer.target_GetProp[removeIndex]!=removeVal)
+			while(Offer.player_GetProp[removeIndex]!=removeVal)
 			{
 				removeIndex++;
 			}
 
-			while(removeIndex<P_GP_Count)
+			while(removeIndex<Offer.P_GP_Count)
 			{
 				Offer.player_GetProp[removeIndex]=Offer.player_GetProp[removeIndex+1];
 				removeIndex++;
@@ -2620,16 +2621,16 @@ void TradeOfferBuilder(int DeedClicked)
 
 	//degug read out for lists
 	printf("Target Get List:");
-	for(i=0;i<T_GP_Count;i++)
+	for(i=0;i<Offer.T_GP_Count;i++)
 	{
-		printf(" %d",Offer.target_GetProp[i])
+		printf(" %d",Offer.target_GetProp[i]);
 	}
 	printf("\n");
 
 	printf("Player Get List:");
-	for(i=0;i<P_GP_Count;i++)
+	for(i=0;i<Offer.P_GP_Count;i++)
 	{
-		printf(" %d",Offer.player_GetProp[i])
+		printf(" %d",Offer.player_GetProp[i]);
 	}
 	printf("\n");
 

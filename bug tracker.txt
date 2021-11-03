@@ -1,0 +1,18 @@
+AI binds up on 
+	NoticeState:2	PropHandler:0	Click:15(14)	Action:0	Player 3
+
+	NoticeState:2	PropHandler:0	Click:15(14)	Action:0	Player 2	Property 12
+
+
+Property 12 is broken	electric company	utility
+
+Buy Vacnt Utility shows on Electric Comapany,
+locks with noticeboard open, when clicked will move funds from active player on property to powerty owner
+Dice update when clicking accept buttons, no other button work
+
+dice roll to calculte rent values, working as intended
+	Does not propery check property ownership for utility
+
+add more text options to util/rr noticeboard text, "Pay Rent", "Player Own"
+
+buy property, kinda broken,

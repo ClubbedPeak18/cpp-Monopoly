@@ -1,0 +1,10 @@
+Monopoly Logic Flow Rework
+
+PropertyHandler
+	Takes Automatic Action for Property Player landed on before handing over to player action
+
+PlayerActionHandler	- Heart of game play
+	Takes in Button Pressed, States, Frames, ActivePlayer, and takes correct action that player wants
+
+ButtonHandler
+	Called when player clicked mouse, sends data to Actionhandler

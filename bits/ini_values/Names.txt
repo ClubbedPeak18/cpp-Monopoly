@@ -1,0 +1,42 @@
+GO
+Mediter- ranean Avenue
+Community Chest
+Baltic Avenue
+Income Tax
+Reading Railroad
+Oriental Avenue
+Chance
+Vermont Avenue
+Connecticut Avenue
+Jail/Visting
+St.Charles Place
+Electric Company
+States Avenue
+Virginia Avenue
+Pennsylvania Railroad
+St.James Place
+Community Chest
+Tennessee Avenue
+NewYork Avenue
+Free Parking
+Kentucky Avenue
+Chance
+Indiana Avenue
+Illnois Avenue
+B&O Railroad
+Atlantic Avenue
+Ventnor Avenue
+Water Works
+Marvin Gardens
+Go To Jail
+Pacific Avenue
+North Carolina Avenue
+Community Chest
+Pennsylvania Avenue
+Short Line
+Chance
+Park Place
+Luxury Tax
+Boardwalk
+Only 40 lines are read
+Max of 30 Charactors Limit on Property Names

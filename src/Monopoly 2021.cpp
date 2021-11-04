@@ -2071,6 +2071,10 @@ void PlayerActionHandler(int ButtonClicked)
 		case 1:
 			ActiveFrame=0;
 			break;
+		case 5:
+			//Return to Trade Menu
+			ActiveFrame=2;
+			break;
 		case 32 ... 109:
 			if(ButtonClicked%2==1)
 			{
@@ -2589,7 +2593,6 @@ void TradeOfferBuilder(int DeedClicked)
 			{
 				removeIndex++;
 			}
-			printf("Deed Clicked:%d | RemoveIndex %d\n",DeedClicked,removeIndex);
 
 			while(removeIndex<Offer.T_GP_Count)
 			{
@@ -2618,8 +2621,7 @@ void TradeOfferBuilder(int DeedClicked)
 		}
 	}
 
-
-	//degug read out for lists
+	//debug read out for lists
 	printf("Target Get List:");
 	for(i=0;i<Offer.T_GP_Count;i++)
 	{
@@ -2639,253 +2641,3 @@ void TradeOfferBuilder(int DeedClicked)
 
 }
 
-
-/*	old property handler, rebuild in process
-
-
-		old-old code
-	if(isClicked==14)
-	{
-		//player buys unowned property, update data, close window
-		Property[Player[ActivePlayer].Pos].Owner=ActivePlayer;
-		Player[ActivePlayer].Money-=Property[Player[ActivePlayer].Pos].BuyCost;
-		PropertyHandlerState=0;
-		ActiveWindow=0;
-		printf("Prop Owner:%d\n",Property[Player[ActivePlayer].Pos].Owner);
-		printf("Player %d : Funds:%d\n",ActivePlayer,Player[ActivePlayer].Money);
-	}
-	if(isClicked==15)
-	{
-		//player declines, close window
-		PropertyHandlerState=0;
-		ActiveWindow=0;
-	}
-
-
-
-	printf("Player %d Landed on Property %d, Owned by %d\n",ActivePlayer,Player[ActivePlayer].Pos,Property[Player[ActivePlayer].Pos].Owner);
-	switch(Property[Player[ActivePlayer].Pos].Type)
-	{
-		case 0:
-			//Normal Property
-			//check if property is owned
-			//check who is owner
-			//check rent value
-			//moves funds
-			//return to player option, disable roll dice, enable end turn
-			if(Property[Player[ActivePlayer].Pos].Owner==-1&&ActiveWindow==1)
-			{
-				PropertyHandlerState=1;
-				NoticeBoard.ElementText.setString("Property Notice:\nBuy Vacant Property");
-			}
-			else
-			{
-				if(Property[Player[ActivePlayer].Pos].Owner!=-1)
-				{
-					Player[Property[Player[ActivePlayer].Pos].Owner].Money+=Property[Player[ActivePlayer].Pos].Rent[Property[Player[ActivePlayer].Pos].HouseCount];
-					Player[ActivePlayer].Money-=Property[Player[ActivePlayer].Pos].Rent[Property[Player[ActivePlayer].Pos].HouseCount];
-				}
-				ActiveWindow=0;
-				PropertyHandlerState=0;
-
-			}
-
-			//		sf::sleep(sf::milliseconds(1000));
-
-			break;
-		case 1:
-			//Utility Property
-			if(Property[Player[ActivePlayer].Pos].Owner==-1&&ActiveWindow==1)
-			{
-				PropertyHandlerState=1;
-				NoticeBoard.ElementText.setString("Property Notice:\nBuy Vacant Utility");
-			}
-			else
-			{
-				if(Property[Player[ActivePlayer].Pos].Owner!=-1)
-				{
-					Player[Property[Player[ActivePlayer].Pos].Owner].Money+=Property[Player[ActivePlayer].Pos].Rent[Property[Player[ActivePlayer].Pos].HouseCount];
-					Player[ActivePlayer].Money-=Property[Player[ActivePlayer].Pos].Rent[Property[Player[ActivePlayer].Pos].HouseCount];
-					//Rent value needs rework
-				}
-				ActiveWindow=0;
-				PropertyHandlerState=0;
-
-			}
-
-			break;
-		case 2:
-			//RailRoad Property
-			if(Property[Player[ActivePlayer].Pos].Owner==-1&&ActiveWindow==1)
-			{
-				PropertyHandlerState=1;
-				NoticeBoard.ElementText.setString("Property Notice:\nBuy Vacant RailRoad");
-			}
-			else
-			{
-				if(Property[Player[ActivePlayer].Pos].Owner!=-1)
-				{
-					Player[Property[Player[ActivePlayer].Pos].Owner].Money+=Property[Player[ActivePlayer].Pos].Rent[Property[Player[ActivePlayer].Pos].HouseCount];
-					Player[ActivePlayer].Money-=Property[Player[ActivePlayer].Pos].Rent[Property[Player[ActivePlayer].Pos].HouseCount];
-					//rent values need rework
-				}
-				ActiveWindow=0;
-				PropertyHandlerState=0;
-
-			}
-			break;
-		case 3:
-			//Taxes
-			ActiveWindow=0;
-			PropertyHandlerState=0;
-			break;
-		case 4:
-			//Community Chest
-			ActiveWindow=0;
-			PropertyHandlerState=0;
-			break;
-		case 5:
-			//Chance
-			ActiveWindow=0;
-			PropertyHandlerState=0;
-			break;
-		case 6:
-			//GO
-			ActiveWindow=0;
-			PropertyHandlerState=0;
-			break;
-		case 7:
-			//Jail / Just Visting
-			ActiveWindow=0;
-			PropertyHandlerState=0;
-			break;
-		case 8:
-			//Parking
-			ActiveWindow=0;
-			PropertyHandlerState=0;
-			break;
-		case 9:
-			//Go To Jail
-			ActiveWindow=0;
-			PropertyHandlerState=0;
-			break;
-		default:
-			ActiveWindow=0;
-			break;
-
-	}
-
-	return PropertyHandlerState;
-
-
- */
-
-
-/*	old mouse button clicked, rebuild in process
-
-int ButtonPressed;
-if(sf::Mouse::isButtonPressed(sf::Mouse::Left))
-{
-	printf("Left Mouse Clicked,POS:%d,%d\n",sf::Mouse::getPosition(window).x,sf::Mouse::getPosition(window).y);
-	ButtonPressed=ButtonHandler(ActivePlayer,0,PropertyHandlerState,9,sf::Mouse::getPosition(window).x,sf::Mouse::getPosition(window).y);
-}
-
-if(ButtonPressed==0&&ActiveWindow==0)
-{
-	ActivePlayer++;
-	if(ActivePlayer>3)
-		ActivePlayer=0;
-	//printf("ActivePlayer:%d\n",ActivePlayer);
-}
-if(ButtonPressed==2&&ActiveWindow==0)
-	SaveGame();
-if(ButtonPressed==4&&ActiveWindow==0)
-	LoadGame();
-if(ButtonPressed==6&&ActiveWindow==0)
-	window.close();
-if(ButtonPressed==8&&ActiveWindow==0)
-{
-	//Roll Dice Button
-	//	Player[0].AgentTexture.loadFromFile("bits/sprits/P1.png");
-	int Die[2]={0};
-	bool Double=false;
-	for(j=0;j<2;j++)
-	{
-		Die[j]=((rand()%6)+1);
-		switch(Die[j])
-		{
-		case 1:
-			Dice[j].ElementTexture.loadFromFile("bits/sprits/Die1.png");
-			break;
-		case 2:
-			Dice[j].ElementTexture.loadFromFile("bits/sprits/Die2.png");
-			break;
-		case 3:
-			Dice[j].ElementTexture.loadFromFile("bits/sprits/Die3.png");
-			break;
-		case 4:
-			Dice[j].ElementTexture.loadFromFile("bits/sprits/Die4.png");
-			break;
-		case 5:
-			Dice[j].ElementTexture.loadFromFile("bits/sprits/Die5.png");
-			break;
-		case 6:
-			Dice[j].ElementTexture.loadFromFile("bits/sprits/Die6.png");
-			break;
-		default:
-			printf("Dice Roll Texture Broke\n");
-			break;
-		}
-		Dice[j].ElementShape.setTexture(&Dice[j].ElementTexture);
-	}
-
-	if(Die[0]==Die[1])
-		Double=true;
-	//printf("   %d,%d,%d\n",Die[0],Die[1],Double);
-
-	//Animate Player around gameboard, bit easier to see player movement
-	PlayerTravelAnimate(Die[0]+Die[1],ActivePlayer);
-
-	//Goto Property Handler and take action
-	PropertyHandlerState=PropertyHandler(ActivePlayer,PropertyHandlerState,ButtonPressed);
-
-	//		Auto Next Player
-	//ActivePlayer++;
-	//if(ActivePlayer>3)
-	//	ActivePlayer=0;
-
-
-
-}
-
-if(ButtonPressed==15&&ActiveWindow==1)
-{
-	//player declines to buy property
-	ActiveWindow=0;
-	PropertyHandlerState=PropertyHandler(ActivePlayer,PropertyHandlerState,ButtonPressed);
-}
-
-if(ButtonPressed==14&&ActiveWindow==1)
-{
-	//player buys vacant property, update data, close window
-	//check to make player can afford before completing transaction
-	if(Player[ActivePlayer].Money<Property[Player[ActivePlayer].Pos].BuyCost)
-	{
-		Button[14].ElementText.setColor(sf::Color(195,195,195));
-		NoticeBoard.ElementText.setString("Insufficient Funds");
-
-	}
-	else
-	{
-		Property[Player[ActivePlayer].Pos].Owner=ActivePlayer;
-		Button[14].ElementText.setColor(sf::Color::Black);
-		Player[ActivePlayer].Money-=Property[Player[ActivePlayer].Pos].BuyCost;
-		PropertyHandlerState=0;
-		ActiveWindow=0;
-		printf("Prop Owner:%d\n",Property[Player[ActivePlayer].Pos].Owner);
-		printf("Player %d : Funds:%d\n",ActivePlayer,Player[ActivePlayer].Money);
-		PropertyHandlerState=PropertyHandler(ActivePlayer,PropertyHandlerState,ButtonPressed);
-	}
-}
-
-*/

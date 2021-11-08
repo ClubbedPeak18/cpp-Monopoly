@@ -412,7 +412,7 @@ int main() {
 	return 0;
 }
 
-void PropertyName(void)
+void StartUpPropertyName(void)
 {
 	//read in 40 lines of property names from text file, max of 29 charactors for property name
 

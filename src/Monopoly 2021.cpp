@@ -1593,7 +1593,7 @@ void DrawTradeBoard(void)
 	//Render Target player switch buttons
 	for(i=0;i<4;i++)
 	{
-		window.draw(Buton[10+i].ElementShape);	
+		window.draw(Button[10+i].ElementShape);	
 	}
 	
 

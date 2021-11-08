@@ -224,8 +224,8 @@ Element NoticeBoard;	//use for main game board interactions
  *	6: Quite Game
  *	7: Mortgage Frame
  *	8: Roll Dice
- *
- *		9 - 13 don't remember what was reserved for
+ *	9: reserved
+ *	10: Target Player 1 ... 13-Target Player 4, used within trade menu
  *
  *	14: Accept		Universal across different states and frames
  *	15: Decline
@@ -412,7 +412,7 @@ int main() {
 	return 0;
 }
 
-void StartUpPropertyName(void)
+void PropertyName(void)
 {
 	//read in 40 lines of property names from text file, max of 29 charactors for property name
 
@@ -1030,6 +1030,20 @@ void StartUpGameBoard(void)
 		}
 
 	}
+	
+	//Setup TragetPlayer buttons for trading menu, might trade menu setup function later
+	for(i=0;i<4;i++)
+	{
+		//Activeplyer button will move to left of screen but set offset, will be visable, but not clickable
+		
+		Button[10+i].ElementShape.setPosition(1000+(i*110),100);	//same spot at debug
+		Button[10+i].ElementShape.setSize(sf::Vector2f(100,50));
+		Button[10+i].ElementShape.setOutlineColor(sf::Color::Black);
+		Button[10+i].isVisible=0;
+		Button[10+i].ElementShape.setOutlineThickness(2);
+		Button[10+i].ElementShape.setFillColor(sf::Color::White);
+		
+	}
 
 
 }
@@ -1576,6 +1590,12 @@ void DrawTradeBoard(void)
 		}
 	}
 
+	//Render Target player switch buttons
+	for(i=0;i<4;i++)
+	{
+		window.draw(Buton[10+i].ElementShape);	
+	}
+	
 
 	window.display();
 	window.setFramerateLimit(30);

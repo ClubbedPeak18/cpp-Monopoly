@@ -39,6 +39,9 @@ void TileNameToTextBox(void);		//WIP for cosmetic upgrade to Property Name Data
 void PlayerSetUp(void);				//Setup for Player Number&Drawing Data
 void PlayerTravelAnimate(int);		//Animate Players moving around gameboard
 
+int NumPadValue(void);			//IN:Nothing
+					//OUT:Number 0 - 9 from keyboard number pad
+
 int ButtonHandler(void);			//IN:Global Variables	::start of code clean up
 									//OUT:Returns button number clicked, no button default to '-1' output
 
@@ -226,7 +229,7 @@ Element NoticeBoard;	//use for main game board interactions
  *	6: Quite Game
  *	7: Mortgage Frame
  *	8: Roll Dice
- *	9: reserved
+ *	9: reserved	submit offer to AI, exit trade by deselect everything and go back to other menu with buttons above
  *	10: Target Player 1 ... 13: Target Player 4, used in trading menu
  *
  *	14: Accept		Universal across different states and frames
@@ -245,8 +248,8 @@ Element NoticeBoard;	//use for main game board interactions
  *	26	'CE'
  *	27	'DEL'
  *
- *	28	reserved
- *  29  reserved
+ *	28	reserved	used for player give cash offer
+ *  29  reserved	used for player get cash offer
  *
  *  30  add / sub house count to all properties, only draw those that matter
  *  ..
@@ -267,6 +270,7 @@ int ActiveWindow=0;		//active toggle for buy property notice
 
 int ActivePlayer=0;			//could be local, but for end turn values gets updated, easier as gobal
 int TargetPlayer=5;			//Player that ActivePlayer is wanting to trade with
+int CashOfferMode=0;			//0-not in cash offer, 1-player get, 2-player give
 int ActiveFrame=0;			//Main Game Board, Build, Trade, Mortgage Menus
 int NoticeBoardState=0;		//Notice Board version / isActive	(ActiveWindow replacement)
 int PlayerActionState=0;	//State of player action, might not need global, but as backup
@@ -317,41 +321,62 @@ int main() {
 			{
 				switch(event.type)
 				{
+				case Event::Closed:
+					window.close();
+					break;
 
-					case Event::Closed:
-						window.close();
-						break;
+				case Event::MouseButtonPressed:
+					PlayerActionHandler(ButtonHandler());
+					printf("AP %d AF %d NBS %d PAS %d PHS %d\n",ActivePlayer,ActiveFrame,NoticeBoardState,PlayerActionState,PropertyHandlerState);
 
-					case Event::MouseButtonPressed:
-						PlayerActionHandler(ButtonHandler());
-						printf("AP %d AF %d NBS %d PAS %d PHS %d\n",ActivePlayer,ActiveFrame,NoticeBoardState,PlayerActionState,PropertyHandlerState);
+					break;
 
-						break;
+				case Event::KeyPressed:
+					i=NumPadValue();
+					//used for making a cash offer in trade, more fun then typeing keyboard on screen, easier to make, maybe
+					if(i=='\n')
+					{
+						CashOfferMode=0;
+					}
 
-					case Event::KeyPressed:
-						if(event.key.code==Keyboard::Numpad8)
+					switch(CashOfferMode)
+					{
+					case 1:
+						//Active Player get cash
+						if(i==80)
 						{
-							for(i=0;i<40;i++)
-							{
-								if(Property[i].HouseCount!=5&&Property[i].Type==0)
-									Property[i].HouseCount++;
-							}
+							Offer.player_getFunds/=10;
 						}
-						if(event.key.code==Keyboard::Numpad2)
+						else
 						{
-							for(i=0;i<40;i++)
-							{
-								if(Property[i].HouseCount!=0&&Property[i].Type==0)
-									Property[i].HouseCount--;
-							}
+							Offer.player_getFunds*=10;
+							Offer.player_getFunds+i;
 						}
 						break;
-
-					case Event::KeyReleased:
+					case 2:
+						//Active Player give cash
+						if(i==80)
+						{
+							Offer.target_getFunds/=10;
+						}
+						else
+						{
+							Offer.target_getFunds*=10;
+							Offer.target_getFunds+i;
+						}
 						break;
-
 					default:
 						break;
+					}
+
+
+					break;
+
+				case Event::KeyReleased:
+					break;
+
+				default:
+					break;
 				}
 			}
 		//END of Human Interaction Handling
@@ -1052,10 +1077,10 @@ void StartUpGameBoard(void)
 		Button[10+i].ElementText.setFont(Calibri);
 
 	}
-
+	
+	//Draw 2 lines for trading menu design
 	for(i=0;i<2;i++)
 	{
-		//Draw a line
 		Line[i].ElementShape.setPosition(0,60);
 		Line[i].ElementShape.setSize(sf::Vector2f(1400,5));
 		Line[i].ElementShape.setOutlineColor(sf::Color::Black);
@@ -1065,6 +1090,32 @@ void StartUpGameBoard(void)
 	Line[1].ElementShape.setPosition(600,0);
 	Line[1].ElementShape.setRotation(90);
 
+	//Setup Cash Offers and Submit Offer Buttons
+	for(i=27;i<30;i++)
+	{
+		j=i;
+		if((i-18)==9)
+		{
+			//27 -> 9 setup for button 9,28,29
+			j=9;
+		}
+		Button[j].ElementShape.setPosition(20+(80*i),750);
+		Button[j].PosX=Button[10+i].ElementShape.getPosition().x;
+		Button[j].ElementShape.setSize(sf::Vector2f(80,40));
+		Button[j].ElementShape.setOutlineColor(sf::Color::Black);
+		Button[j].isVisible=0;
+		Button[j].ElementShape.setOutlineThickness(2);
+		Button[j].ElementShape.setFillColor(sf::Color::White);
+		Button[j].ElementText.setString(IntToString(i+1,2));
+		Button[j].ElementText.setPosition(Button[10+i].ElementShape.getPosition().x,Button[10+i].ElementShape.getPosition().y);
+		Button[j].ElementText.setCharacterSize(20);
+		Button[j].ElementText.setColor(sf::Color::Black);
+		Button[j].ElementText.setFont(Calibri);
+	}
+	Button[9].ElementText.setString("Submit Offer");
+	Button[28].ElementText.setString("Give Cash Offer");
+	BUtton[29].ElementText.setString("Get Cash Offer");
+	
 }
 
 void StartUpPropertyDeed(void)
@@ -1617,6 +1668,20 @@ void DrawTradeBoard(void)
 		window.draw(Line[i].ElementShape);
 	}
 
+	for(i=27;i<30;i++)
+	{
+		if(i==27)
+		{
+			window.draw(Button[9].ElementShape);
+			window.draw(Button[9].ElementText);
+		}
+		else
+		{
+			window.draw(Button[i].ElementShape);
+			window.draw(Button[i].ElementText);
+		}	
+	}
+	
 	window.display();
 	window.setFramerateLimit(30);
 }
@@ -1862,15 +1927,27 @@ int ButtonHandler(void)
 				ButtonClicked=i;
 				printf("Button %d Pressed\n",i);
 				TargetPlayer=i-10;
-				for(j=0;j<4;j++)
-				{
-					if(j!=ActivePlayer)
-						if(j!=TargetPlayer)
-							Button[10+j].isVisible=0;
-				}
 			}
 		}
+		for(i=27;i<30;i++)
+		{
+			//cash offer & Submit offer
+			i=j;
+			if(i==27)
+			{
+				j=9;
+			}
+			ButtonWidth=Button[i].ElementShape.getSize().x;
+			ButtonHeight=Button[i].ElementShape.getSize().y;
+			ButtonPosX=Button[i].ElementShape.getPosition().x;
+			ButtonPosY=Button[i].ElementShape.getPosition().y;
 
+			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Button[i].isVisible==1)
+			{
+				ButtonClicked=j;
+				printf("Button %d Pressed\n",i);
+			}
+		}
 	}
 
 
@@ -1930,6 +2007,7 @@ void PlayerActionHandler(int ButtonClicked)
 				break;
 			case 5:
 				//Return to Trade Menu
+				CashOfferMode=0;
 				for(i=10;i<14;i++)
 				{
 					Button[i].isVisible=1;
@@ -2141,7 +2219,13 @@ void PlayerActionHandler(int ButtonClicked)
 			ActiveFrame=0;
 			break;
 		case 5:
-			//Return to Trade Menu
+			//Return to Trade Menu	
+			for(i=10;i<14;i++)
+			{
+				Button[i].isVisible=1;
+			}
+			TargetPlayer=5;
+			CashOfferMode=0;
 			ActiveFrame=2;
 			break;
 		case 32 ... 109:
@@ -2178,6 +2262,10 @@ void PlayerActionHandler(int ButtonClicked)
 			//Return to Main Board
 			ActiveFrame=0;
 		break;
+		
+		case 9:
+			//Player is done with building trade, send offer to AI	
+		break;		
 
 		case 3:
 			//Return to Build Menu
@@ -2189,6 +2277,17 @@ void PlayerActionHandler(int ButtonClicked)
 			//handles building trade offer
 			TradeOfferBuilder(ButtonClicked);
 		break;
+				
+		case 28:
+			//Player Give Cash
+			CashOfferMode=2;
+		break;
+				
+		case 29:
+			//Player Get Cash
+			CashOfferMode=1;
+		break;
+				
 		}
 		break;
 	case 3:
@@ -2648,6 +2747,28 @@ void TradeOfferBuilder(int DeedClicked)
 	int removeIndex=0;
 	printf("PROPERTY DEED CLICKED: %d\n",DeedClicked);
 
+	//check to see if there are any properties within the deal structure
+	//if true, hide other players that could be selected for trading target
+	//else, render the other players so ActivePlayer can show around
+	
+	if(Offer.T_GP!=0 || Offer.P_GP!=0)
+	{
+		//There are properties in trade offer, could be give or get
+		for(i=0;i<4;i++)
+		{
+			if(i!=ActivePlayer)
+				if(i!=TargetPlayer)
+					Button[10+j].isVisible=0;
+		}
+	}
+	else
+	{
+		for(i=0;i<4;i++)
+		{
+			Button[i+10].isVisible=1;
+		}
+	}
+	
 	if(PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 	{
 		//Add property to list
@@ -2726,4 +2847,57 @@ void TradeOfferBuilder(int DeedClicked)
 
 
 }
+
+int NumPadValue(void)
+{
+	int Number=-1;
+	printf("Keyboard Number is: %d\n",event.key.code);
+	system("PAUSE");	//want to look at key code number, get ride of switch case
+	switch(event.key.code)
+	{
+	case Keyboard::Numpad0:
+		Number=0;
+		break;
+	
+	case Keyboard::Numpad1:
+		Number=1;
+		break;
+	case Keyboard::Numpad1:
+		Number=2;
+		break;
+	case Keyboard::Numpad1:
+		Number=3;
+		break;
+	case Keyboard::Numpad1:
+		Number=4;
+		break;
+	case Keyboard::Numpad1:
+		Number=5;
+		break;
+	case Keyboard::Numpad1:
+		Number=6;
+		break;
+	case Keyboard::Numpad1:
+		Number=7;
+		break;
+	case Keyboard::Numpad1:
+		Number=8;
+		break;
+	case Keyboard::Numpad1:
+		Number=9;
+		break;
+	case Kerboard::Enter:
+		Number='\n';	
+		break;
+	case Keyboard::Backspace:
+		Number=80;
+	default:
+		break;	
+	}
+	
+	return Number;
+}
+
+
+
 

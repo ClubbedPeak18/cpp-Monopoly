@@ -185,6 +185,8 @@ const int ButtonCount=110;	// old 30
 Element Button[ButtonCount];	//0-9 for numbers 0 to 9;	 10,11 for yes/no;	12,13,14,15 main,build,trade,mortgage
 					//Rework for button numbers, see below
 
+Element Line[2];		//Draw a line, used for trading menu
+
 Element Dice[2];		//game dice
 Element PlayerCount;	//displaces current ActivePlayer
 Element Debugger[10];	//debug printout in game window for testing
@@ -225,12 +227,12 @@ Element NoticeBoard;	//use for main game board interactions
  *	7: Mortgage Frame
  *	8: Roll Dice
  *	9: reserved
- *	10: Target Player 1 ... 13-Target Player 4, used within trade menu
+ *	10: Target Player 1 ... 13: Target Player 4, used in trading menu
  *
  *	14: Accept		Universal across different states and frames
  *	15: Decline
  *
- *	16: '0'		Buttons for number pad, used in trading menu
+ *	16: '0'		Buttons for number pad, used in trading menu, may use keyboard numpad
  *	17: '1'
  *	18:	'2'
  *	19:	'3'			7 8 9
@@ -264,7 +266,7 @@ int ActiveWindow=0;		//active toggle for buy property notice
 //int ButtonHandlerState=0;
 
 int ActivePlayer=0;			//could be local, but for end turn values gets updated, easier as gobal
-int TargetPlayer=1;			//Player that ActivePlayer is wanting to trade with
+int TargetPlayer=5;			//Player that ActivePlayer is wanting to trade with
 int ActiveFrame=0;			//Main Game Board, Build, Trade, Mortgage Menus
 int NoticeBoardState=0;		//Notice Board version / isActive	(ActiveWindow replacement)
 int PlayerActionState=0;	//State of player action, might not need global, but as backup
@@ -1030,21 +1032,38 @@ void StartUpGameBoard(void)
 		}
 
 	}
-	
+
 	//Setup TragetPlayer buttons for trading menu, might trade menu setup function later
 	for(i=0;i<4;i++)
 	{
 		//Activeplyer button will move to left of screen but set offset, will be visable, but not clickable
-		
-		Button[10+i].ElementShape.setPosition(1000+(i*110),100);	//same spot at debug
-		Button[10+i].ElementShape.setSize(sf::Vector2f(100,50));
+
+		Button[10+i].ElementShape.setPosition(835+90*i,20);	//same spot at debug
+		Button[10+i].PosX=Button[10+i].ElementShape.getPosition().x;
+		Button[10+i].ElementShape.setSize(sf::Vector2f(80,40));
 		Button[10+i].ElementShape.setOutlineColor(sf::Color::Black);
 		Button[10+i].isVisible=0;
 		Button[10+i].ElementShape.setOutlineThickness(2);
 		Button[10+i].ElementShape.setFillColor(sf::Color::White);
-		
+		Button[10+i].ElementText.setString(IntToString(i+1,2));
+		Button[10+i].ElementText.setPosition(Button[10+i].ElementShape.getPosition().x,Button[10+i].ElementShape.getPosition().y);
+		Button[10+i].ElementText.setCharacterSize(20);
+		Button[10+i].ElementText.setColor(sf::Color::Black);
+		Button[10+i].ElementText.setFont(Calibri);
+
 	}
 
+	for(i=0;i<2;i++)
+	{
+		//Draw a line
+		Line[i].ElementShape.setPosition(0,60);
+		Line[i].ElementShape.setSize(sf::Vector2f(1400,5));
+		Line[i].ElementShape.setOutlineColor(sf::Color::Black);
+		Line[i].ElementShape.setOutlineThickness(2);
+		Line[i].ElementShape.setFillColor(sf::Color::Black);
+	}
+	Line[1].ElementShape.setPosition(600,0);
+	Line[1].ElementShape.setRotation(90);
 
 }
 
@@ -1173,24 +1192,7 @@ void DrawGameBoard(void)
 			if(Property[i].Owner!=-1)
 			{
 				//Property is owned, show owner
-				switch(Property[i].Owner)
-				{
-				case 0:
-					Property[i].TileCostText.setString("Player 1");
-					break;
-				case 1:
-					Property[i].TileCostText.setString("Player 2");
-					break;
-				case 2:
-					Property[i].TileCostText.setString("Player 3");
-					break;
-				case 3:
-					Property[i].TileCostText.setString("Player 4");
-					break;
-				default:
-					Property[i].TileCostText.setString("BROKEN");
-					break;
-				}
+				Property[i].TileCostText.setString(IntToString(Property[i].Owner+1,2));
 			}
 			else
 			{
@@ -1561,8 +1563,8 @@ void DrawTradeBoard(void)
 	//only render tradable properties, Normal, Util, Railroad,	Owned only by the two players interacting in the trade
 	for(i=0;i<40;i++)
 	{
-		if(Property[i].Type==0||Property[i].Type==1||Property[i].Type==2)
-		{
+		if((Property[i].Type==0||Property[i].Type==1||Property[i].Type==2)&&Property[i].HouseCount==0)	//URGENT, props with houses can be partially traded
+		{																								//temp fix if prop has house, but not whole block
 			if(Property[i].Owner==TargetPlayer || Property[i].Owner==ActivePlayer)
 			{
 				if(PropertyDeed[i].TileOutline.getPosition().x!=PropertyDeed[i].PosX)
@@ -1593,9 +1595,27 @@ void DrawTradeBoard(void)
 	//Render Target player switch buttons
 	for(i=0;i<4;i++)
 	{
-		window.draw(Button[10+i].ElementShape);	
+		if(Button[i+10].isVisible==1)
+		{
+			if(i==ActivePlayer)
+			{
+				Button[10+i].ElementShape.setPosition(20,Button[10+i].ElementShape.getPosition().y);
+			}
+			else
+			{
+				Button[10+i].ElementShape.setPosition(Button[10+i].PosX,Button[10+i].ElementShape.getPosition().y);
+			}
+			Button[10+i].ElementText.setPosition(Button[10+i].ElementShape.getPosition().x,Button[10+i].ElementShape.getPosition().y);
+
+			window.draw(Button[10+i].ElementShape);
+			window.draw(Button[10+i].ElementText);
+		}
 	}
-	
+
+	for(i=0;i<2;i++)
+	{
+		window.draw(Line[i].ElementShape);
+	}
 
 	window.display();
 	window.setFramerateLimit(30);
@@ -1787,6 +1807,7 @@ void LoadGame(void)
 int ButtonHandler(void)
 {
 	int i=0;
+	int j=0;
 	int MouseX=sf::Mouse::getPosition(window).x;
 	int MouseY=sf::Mouse::getPosition(window).y;
 
@@ -1823,13 +1844,36 @@ int ButtonHandler(void)
 			ButtonPosX=PropertyDeed[i].TileOutline.getPosition().x;
 			ButtonPosY=PropertyDeed[i].TileOutline.getPosition().y;
 			
-			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight))
+			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Property[i].Type<3)
 			{
 				ButtonClicked=i+200;
 				printf("Button %d Pressed\n",i);
 			}
 		}
+		for(i=10;i<14;i++)
+		{
+			ButtonWidth=Button[i].ElementShape.getSize().x;
+			ButtonHeight=Button[i].ElementShape.getSize().y;
+			ButtonPosX=Button[i].ElementShape.getPosition().x;
+			ButtonPosY=Button[i].ElementShape.getPosition().y;
+
+			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Button[i].isVisible==1)
+			{
+				ButtonClicked=i;
+				printf("Button %d Pressed\n",i);
+				TargetPlayer=i-10;
+				for(j=0;j<4;j++)
+				{
+					if(j!=ActivePlayer)
+						if(j!=TargetPlayer)
+							Button[10+j].isVisible=0;
+				}
+			}
+		}
+
 	}
+
+
 
 	return ButtonClicked;
 }
@@ -1886,6 +1930,11 @@ void PlayerActionHandler(int ButtonClicked)
 				break;
 			case 5:
 				//Return to Trade Menu
+				for(i=10;i<14;i++)
+				{
+					Button[i].isVisible=1;
+				}
+				TargetPlayer=5;
 				ActiveFrame=2;
 				break;
 			case 6:
@@ -2168,6 +2217,9 @@ char* IntToString(int BaseNum, int setting)
 	//can go beyond limit with recursive loop
 
 	//setting is toggle to add "$" to front text string
+	//setting 0 - no addition to number string
+	//setting 1 - addition of "$" to number string
+	//setting 2 - addition of "Player " to number string
 
 	//BaseNum=12345;	//debug override
 	//setting=1;
@@ -2184,6 +2236,19 @@ char* IntToString(int BaseNum, int setting)
 		i++;
 	}
 	
+	if(setting==2)
+	{
+		StringBuffer[0]='P';
+		StringBuffer[1]='l';
+		StringBuffer[2]='a';
+		StringBuffer[3]='y';
+		StringBuffer[4]='e';
+		StringBuffer[5]='r';
+		StringBuffer[6]=' ';
+
+		i+=7;
+	}
+
 	if(BaseNum<0)
 	{
 		//ABS values, add ( - ) to string,	fixed long running bug of neg numbers breaking this
@@ -2581,6 +2646,7 @@ void TradeOfferBuilder(int DeedClicked)
 	int i=0;
 	int removeVal=DeedClicked;
 	int removeIndex=0;
+	printf("PROPERTY DEED CLICKED: %d\n",DeedClicked);
 
 	if(PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 	{

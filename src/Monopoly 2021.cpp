@@ -2282,8 +2282,18 @@ void PlayerActionHandler(int ButtonClicked)
 		case 9:
 			//Player is done with building trade, send offer to AI	
 			printf("Trade Offer Submitted\n");
-			PropertyExchange(AI_Trade);
+			PropertyExchange(AI_Trade());
+			ActiveFrame=0;
 
+			for(i=10;i<14;i++)
+			{
+				Button[i].isVisible=0;
+			}
+
+			for(i=0;i<10;i++)
+			{
+				Button[i].isVisible=1;
+			}
 		break;		
 
 		case 3:
@@ -2910,6 +2920,22 @@ void PropertyExchange(int Result)
 		//Target Player get property
 		Property[Offer.target_GetProp[i]].Owner=TargetPlayer;
 	}
+
+	for(i=0;i<40;i++)
+	{
+		PropertyDeed[i].TileOutline.setOutlineColor(sf::Color::Black);
+		if(i<30)
+		{
+			Offer.player_GetProp[i]=0;
+			Offer.target_GetProp[i]=0;
+		}
+	}
+
+	Offer.P_GP_Count=0;
+	Offer.T_GP_Count=0;
+	Offer.player_GetFunds=0;
+	Offer.target_GetFunds=0;
+
 
 }
 

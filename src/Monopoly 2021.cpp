@@ -39,9 +39,6 @@ void TileNameToTextBox(void);		//WIP for cosmetic upgrade to Property Name Data
 void PlayerSetUp(void);				//Setup for Player Number&Drawing Data
 void PlayerTravelAnimate(int);		//Animate Players moving around gameboard
 
-int NumPadValue(void);			//IN:Nothing
-					//OUT:Number 0 - 9 from keyboard number pad
-
 int ButtonHandler(void);			//IN:Global Variables	::start of code clean up
 									//OUT:Returns button number clicked, no button default to '-1' output
 
@@ -164,7 +161,7 @@ struct TradeStruct
 	int target_GetProp[30]={0};
 	int target_GetFunds;
 	int player_GetProp[30]={0};
-	int player_Getfunds;
+	int player_GetFunds;
 	int T_GP_Count;		//index # of props in array
 	int P_GP_Count;
 };
@@ -248,8 +245,8 @@ Element NoticeBoard;	//use for main game board interactions
  *	26	'CE'
  *	27	'DEL'
  *
- *	28	reserved	used for player give cash offer
- *  29  reserved	used for player get cash offer
+ *	28	reserved	used for Active Player give cash offer
+ *  29  reserved	used for Active Player get cash offer
  *
  *  30  add / sub house count to all properties, only draw those that matter
  *  ..
@@ -311,7 +308,7 @@ int main() {
 	int RNDTick=0;
 	while(window.isOpen())
 	{
-		Debugger[0].ElementText.setString(IntToString(ActivePlayer+1,1));
+		Debugger[0].ElementText.setString(IntToString(ActivePlayer+1,2));
 		sf::Event event;
 		if(Player[ActivePlayer].hasAI==0)
 		{
@@ -332,37 +329,42 @@ int main() {
 					break;
 
 				case Event::KeyPressed:
-					i=NumPadValue();
+					printf("key code is: %d\n",event.key.code);
 					//used for making a cash offer in trade, more fun then typeing keyboard on screen, easier to make, maybe
-					if(i=='\n')
+					if(event.key.code==58||event.key.code==36)	//ENTER or ESC to exit number entery
 					{
 						CashOfferMode=0;
 					}
 
+					if(((event.key.code>74)&&(event.key.code<85))||((event.key.code>25)&&(event.key.code<36)))
+						if(event.key.code>74)
+							i=event.key.code-75;
+						else
+							i=event.key.code-26;
 					switch(CashOfferMode)
 					{
 					case 1:
 						//Active Player get cash
-						if(i==80)
+						if(event.key.code==59)
 						{
-							Offer.player_getFunds/=10;
+							Offer.player_GetFunds/=10;
 						}
 						else
 						{
-							Offer.player_getFunds*=10;
-							Offer.player_getFunds+i;
+							Offer.player_GetFunds*=10;
+							Offer.player_GetFunds+=i;
 						}
 						break;
 					case 2:
 						//Active Player give cash
-						if(i==80)
+						if(event.key.code==59)
 						{
-							Offer.target_getFunds/=10;
+							Offer.target_GetFunds/=10;
 						}
 						else
 						{
-							Offer.target_getFunds*=10;
-							Offer.target_getFunds+i;
+							Offer.target_GetFunds*=10;
+							Offer.target_GetFunds+=i;
 						}
 						break;
 					default:
@@ -996,12 +998,14 @@ void StartUpGameBoard(void)
 	Button[15].ElementText.setPosition(Button[15].ElementShape.getPosition().x,Button[15].ElementShape.getPosition().y);
 	NoticeBoard.ElementText.setPosition(NoticeBoard.ElementShape.getPosition().x,NoticeBoard.ElementShape.getPosition().y);
 
-	//setup for Debug / UI Elemenents (Active Player Indicator)
-	Debugger[0].ElementText.setPosition(1000,100);
-	Debugger[0].ElementText.setCharacterSize(20);
-	Debugger[0].ElementText.setColor(sf::Color::Black);
-	Debugger[0].ElementText.setFont(Calibri);
-
+	//setup for Debug / UI Elemenents (active player, AP funds, AP get cash, TP funds, TP get cash)
+	for(i=0;i<10;i++)
+	{
+		Debugger[i].ElementText.setPosition(1000,100);
+		Debugger[i].ElementText.setCharacterSize(20);
+		Debugger[i].ElementText.setColor(sf::Color::Black);
+		Debugger[i].ElementText.setFont(Calibri);
+	}
 	//Might move to new function StartUpBuildBoard---------------------------------------------------------------
 
 
@@ -1099,22 +1103,21 @@ void StartUpGameBoard(void)
 			//27 -> 9 setup for button 9,28,29
 			j=9;
 		}
-		Button[j].ElementShape.setPosition(20+(80*i),750);
-		Button[j].PosX=Button[10+i].ElementShape.getPosition().x;
-		Button[j].ElementShape.setSize(sf::Vector2f(80,40));
+		Button[j].ElementShape.setPosition(20+(110*(i-27)),750);
+		Button[j].PosX=Button[j].ElementShape.getPosition().x;
+		Button[j].ElementShape.setSize(sf::Vector2f(100,50));
 		Button[j].ElementShape.setOutlineColor(sf::Color::Black);
-		Button[j].isVisible=0;
+		Button[j].isVisible=1;
 		Button[j].ElementShape.setOutlineThickness(2);
 		Button[j].ElementShape.setFillColor(sf::Color::White);
-		Button[j].ElementText.setString(IntToString(i+1,2));
-		Button[j].ElementText.setPosition(Button[10+i].ElementShape.getPosition().x,Button[10+i].ElementShape.getPosition().y);
+		Button[j].ElementText.setPosition(Button[j].ElementShape.getPosition().x,Button[j].ElementShape.getPosition().y);
 		Button[j].ElementText.setCharacterSize(20);
 		Button[j].ElementText.setColor(sf::Color::Black);
 		Button[j].ElementText.setFont(Calibri);
 	}
-	Button[9].ElementText.setString("Submit Offer");
-	Button[28].ElementText.setString("Give Cash Offer");
-	BUtton[29].ElementText.setString("Get Cash Offer");
+	Button[9].ElementText.setString("Submit\nOffer");
+	Button[28].ElementText.setString("Give\nCash Offer");
+	Button[29].ElementText.setString("Get\nCash Offer");
 	
 }
 
@@ -1677,11 +1680,44 @@ void DrawTradeBoard(void)
 		}
 		else
 		{
+			switch(CashOfferMode)
+			{
+			case 1:
+				Button[29].ElementShape.setFillColor(sf::Color::Green);
+				Button[28].ElementShape.setFillColor(sf::Color::White);
+				break;
+			case 2:
+				Button[29].ElementShape.setFillColor(sf::Color::White);
+				Button[28].ElementShape.setFillColor(sf::Color::Green);
+				break;
+			default:
+				Button[29].ElementShape.setFillColor(sf::Color::White);
+				Button[28].ElementShape.setFillColor(sf::Color::White);
+				break;
+			}
 			window.draw(Button[i].ElementShape);
 			window.draw(Button[i].ElementText);
 		}	
 	}
-	
+
+	Debugger[1].ElementText.setPosition(Button[29].ElementShape.getPosition().x,Button[29].ElementShape.getPosition().y-30);
+	Debugger[1].ElementText.setString(IntToString(Offer.player_GetFunds,0));
+
+	Debugger[2].ElementText.setPosition(Button[28].ElementShape.getPosition().x,Button[28].ElementShape.getPosition().y-30);
+	Debugger[2].ElementText.setString(IntToString(Offer.target_GetFunds,0));
+
+	Debugger[3].ElementText.setPosition(Button[29].ElementShape.getPosition().x,Button[29].ElementShape.getPosition().y-60);
+	Debugger[3].ElementText.setString(IntToString(Player[TargetPlayer].Money,0));
+
+	Debugger[4].ElementText.setPosition(Button[28].ElementShape.getPosition().x,Button[28].ElementShape.getPosition().y-60);
+	Debugger[4].ElementText.setString(IntToString(Player[ActivePlayer].Money,0));
+
+	for(i=1;i<5;i++)
+	{
+		window.draw(Debugger[i].ElementText);
+	}
+
+
 	window.display();
 	window.setFramerateLimit(30);
 }
@@ -1896,6 +1932,12 @@ int ButtonHandler(void)
 		{
 			ButtonClicked=i;
 			printf("Button %d Pressed\n",i);
+			if(ActiveFrame==2)
+			{
+				if((ButtonClicked>9&&ButtonClicked<14)&&(ButtonClicked-10!=ActivePlayer))
+					TargetPlayer=i-10;
+			}
+
 		}
 	}
 	
@@ -1912,45 +1954,13 @@ int ButtonHandler(void)
 			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Property[i].Type<3)
 			{
 				ButtonClicked=i+200;
-				printf("Button %d Pressed\n",i);
-			}
-		}
-		for(i=10;i<14;i++)
-		{
-			ButtonWidth=Button[i].ElementShape.getSize().x;
-			ButtonHeight=Button[i].ElementShape.getSize().y;
-			ButtonPosX=Button[i].ElementShape.getPosition().x;
-			ButtonPosY=Button[i].ElementShape.getPosition().y;
-
-			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Button[i].isVisible==1)
-			{
-				ButtonClicked=i;
-				printf("Button %d Pressed\n",i);
-				TargetPlayer=i-10;
-			}
-		}
-		for(i=27;i<30;i++)
-		{
-			//cash offer & Submit offer
-			i=j;
-			if(i==27)
-			{
-				j=9;
-			}
-			ButtonWidth=Button[i].ElementShape.getSize().x;
-			ButtonHeight=Button[i].ElementShape.getSize().y;
-			ButtonPosX=Button[i].ElementShape.getPosition().x;
-			ButtonPosY=Button[i].ElementShape.getPosition().y;
-
-			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Button[i].isVisible==1)
-			{
-				ButtonClicked=j;
-				printf("Button %d Pressed\n",i);
+				printf("Button %d Pressed\n",i+200);
 			}
 		}
 	}
 
-
+	if(ButtonClicked==9)
+		printf("Submit Trade was clicked\n");
 
 	return ButtonClicked;
 }
@@ -2265,6 +2275,7 @@ void PlayerActionHandler(int ButtonClicked)
 		
 		case 9:
 			//Player is done with building trade, send offer to AI	
+			printf("Trade Offer Submitted\n");
 		break;		
 
 		case 3:
@@ -2746,28 +2757,6 @@ void TradeOfferBuilder(int DeedClicked)
 	int removeVal=DeedClicked;
 	int removeIndex=0;
 	printf("PROPERTY DEED CLICKED: %d\n",DeedClicked);
-
-	//check to see if there are any properties within the deal structure
-	//if true, hide other players that could be selected for trading target
-	//else, render the other players so ActivePlayer can show around
-	
-	if(Offer.T_GP!=0 || Offer.P_GP!=0)
-	{
-		//There are properties in trade offer, could be give or get
-		for(i=0;i<4;i++)
-		{
-			if(i!=ActivePlayer)
-				if(i!=TargetPlayer)
-					Button[10+j].isVisible=0;
-		}
-	}
-	else
-	{
-		for(i=0;i<4;i++)
-		{
-			Button[i+10].isVisible=1;
-		}
-	}
 	
 	if(PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 	{
@@ -2843,59 +2832,39 @@ void TradeOfferBuilder(int DeedClicked)
 	}
 	printf("\n");
 
-
-
-
-}
-
-int NumPadValue(void)
-{
-	int Number=-1;
-	printf("Keyboard Number is: %d\n",event.key.code);
-	system("PAUSE");	//want to look at key code number, get ride of switch case
-	switch(event.key.code)
+	//check to see if there are any properties within the deal structure
+	//if true, hide other players that could be selected for trading target
+	//else, render the other players so ActivePlayer can show around
+	if(Offer.T_GP_Count!=0 || Offer.P_GP_Count!=0)
 	{
-	case Keyboard::Numpad0:
-		Number=0;
-		break;
-	
-	case Keyboard::Numpad1:
-		Number=1;
-		break;
-	case Keyboard::Numpad1:
-		Number=2;
-		break;
-	case Keyboard::Numpad1:
-		Number=3;
-		break;
-	case Keyboard::Numpad1:
-		Number=4;
-		break;
-	case Keyboard::Numpad1:
-		Number=5;
-		break;
-	case Keyboard::Numpad1:
-		Number=6;
-		break;
-	case Keyboard::Numpad1:
-		Number=7;
-		break;
-	case Keyboard::Numpad1:
-		Number=8;
-		break;
-	case Keyboard::Numpad1:
-		Number=9;
-		break;
-	case Kerboard::Enter:
-		Number='\n';	
-		break;
-	case Keyboard::Backspace:
-		Number=80;
-	default:
-		break;	
+		//There are properties in trade offer, could be give or get
+		for(i=0;i<4;i++)
+		{
+			if(i!=ActivePlayer)
+				if(i!=TargetPlayer)
+					Button[10+i].isVisible=0;
+		}
+		//Hide the other navigation buttons as well if there is a live trade
+		for(i=1;i<8;i+=2)
+		{
+			Button[i].isVisible=0;
+		}
 	}
-	
-	return Number;
+	else
+	{
+		for(i=0;i<4;i++)
+		{
+			Button[i+10].isVisible=1;
+		}
+		for(i=1;i<8;i+=2)
+		{
+			Button[i].isVisible=1;
+		}
+	}
+
+
+
+
 }
 
 

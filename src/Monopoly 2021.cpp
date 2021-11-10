@@ -69,7 +69,10 @@ void HouseBuildBalancer(int);		//IN:Property Player is wanting to build on (Acti
 char* IntToString(int,int);			//Convert Number data to String Data
 char StringBuffer[10];				//cheap woke around for local buffer within function, produces garbage text without
 
-int TradeAI(void);					//IN:Offer Struct (Global var)
+void PropertyExchange(int);			//IN:AI Response, Offer is Global, but is feed into function
+									//OUT: Update property and money values
+
+int AI_Trade(void);					//IN:Offer Struct (Global var)
 									//OUT:Yes/No to trade offer
 
 //Offset Data for drawing Players on GameBoard
@@ -274,6 +277,7 @@ int PlayerActionState=0;	//State of player action, might not need global, but as
 int PropertyHandlerState=0;	//Current Property landed on, could be made part of player struct
 							//combine ButtonClickState with ActivePlayer to track player button selection
 int MonopolyBlockLookUp[8][3]={0};	//Cheat, quick lookup for monopoly block properties max of 3 properties per monopoly block
+int DiceRollCount=0;		//AI will cheat and know the entire RND number sequence, this is the pointer on that list
 
 
 int main() {
@@ -2270,16 +2274,22 @@ void PlayerActionHandler(int ButtonClicked)
 		{
 		case 1:
 			//Return to Main Board
+			Offer.player_GetFunds=0;
+			Offer.target_GetFunds=0;
 			ActiveFrame=0;
 		break;
 		
 		case 9:
 			//Player is done with building trade, send offer to AI	
 			printf("Trade Offer Submitted\n");
+			PropertyExchange(AI_Trade);
+
 		break;		
 
 		case 3:
 			//Return to Build Menu
+			Offer.player_GetFunds=0;
+			Offer.target_GetFunds=0;
 			CheckMonopolyStatus();
 			ActiveFrame=1;
 		break;
@@ -2291,12 +2301,18 @@ void PlayerActionHandler(int ButtonClicked)
 				
 		case 28:
 			//Player Give Cash
-			CashOfferMode=2;
+			if(CashOfferMode==2)
+				CashOfferMode=0;
+			else
+				CashOfferMode=2;
 		break;
 				
 		case 29:
 			//Player Get Cash
-			CashOfferMode=1;
+			if(CashOfferMode==1)
+				CashOfferMode=0;
+			else
+				CashOfferMode=1;
 		break;
 				
 		}
@@ -2473,6 +2489,7 @@ int RollDice(void)
 	else
 		Player[ActivePlayer].DB_roll=0;
 
+	DiceRollCount++;
 	return DiceTotal;
 }
 
@@ -2867,6 +2884,76 @@ void TradeOfferBuilder(int DeedClicked)
 
 }
 
+void PropertyExchange(int Result)
+{
+	int i=0;
+	int j=0;
+	//if AI declines, exit and do nothing
+	if(Result!=1)
+		return;
+	//AI accepted, trade money and properties
+
+	Player[TargetPlayer].Money+=Offer.target_GetFunds;
+	Player[TargetPlayer].Money-=Offer.player_GetFunds;
+
+	Player[ActivePlayer].Money+=Offer.player_GetFunds;
+	Player[ActivePlayer].Money-=Offer.target_GetFunds;
+
+	for(i=0;i<Offer.P_GP_Count;i++)
+	{
+		//Active Player get property
+		Property[Offer.player_GetProp[i]].Owner=ActivePlayer;
+	}
+
+	for(i=0;i<Offer.T_GP_Count;i++)
+	{
+		//Target Player get property
+		Property[Offer.target_GetProp[i]].Owner=TargetPlayer;
+	}
+
+}
+
+int AI_Trade(void)
+{
+	//AI for evaluating trade deals
+	int i=0;
+	int j=0;
+	int Accept=0;
+
+	int TargetGain=0;
+	int TargetLoss=0;
+
+	//very simple ai for now, adds up buy cost for each property plus cash offer
+	//if Target > Active, make deal
+
+	for(i=0;i<Offer.T_GP_Count;i++)
+	{
+		//build Target Property Gain
+		TargetGain+=Property[Offer.target_GetProp[i]].BuyCost;
+	}
+
+	for(i=0;i<Offer.T_GP_Count;i++)
+	{
+		//build Target Property Loss
+		TargetLoss+=Property[Offer.player_GetProp[i]].BuyCost;
+	}
+
+	//add in Cash Offer
+	TargetGain+=Offer.target_GetFunds;
+	TargetLoss-=Offer.player_GetFunds;
+
+	if(TargetGain>TargetLoss)
+		Accept=1;
+
+	//	More Advance AI Dev Below, look at monoply completness status
 
 
 
+
+
+
+
+
+
+	return Accept;
+}

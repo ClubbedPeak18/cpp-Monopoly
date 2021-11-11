@@ -60,7 +60,7 @@ int AI_TURN(void);					//IN:Global Variables
 void SaveGame(void);				//Save Game to TXT File
 void LoadGame(void);				//Load Game from TXT File
 
-void CheckMonopolyStatus(void);		//IN:Glogal Variables
+void CheckMonopolyStatus();			//IN:Global ActivePlayer
 									//OUT:ActivePlayer MonopoliesOwned
 
 void HouseBuildBalancer(int);		//IN:Property Player is wanting to build on (ActiveProperty)
@@ -74,6 +74,10 @@ void PropertyExchange(int);			//IN:AI Response, Offer is Global, but is feed int
 
 int AI_Trade(void);					//IN:Offer Struct (Global var)
 									//OUT:Yes/No to trade offer
+
+void BoardEvaluation(int,int);		//IN:Deal Maker, Deal Target Player ID
+									//OUT:Fill in data for boardState Struct, used for trade evaluation
+
 
 //Offset Data for drawing Players on GameBoard
 int POSXOffset[4]={10,10,35,35};	//10,10,35,35	normal(0-3) , corner(4-7)
@@ -131,7 +135,7 @@ struct Agents
 	int isBankrupt;
 	int hasRolled;
 	int hasAI;
-	int MonopoliesOwned[8]={0};	//dirty trick to trace Completed Monopolies, sub 1 to get to LookUpTable array index
+	int MonopoliesOwned[8]={0};	//dirty trick to track Completed Monopolies, sub 1 to get to LookUpTable array index
 
 	int PosX;
 	int PosY;
@@ -169,6 +173,15 @@ struct TradeStruct
 	int P_GP_Count;
 };
 
+struct BoardState
+{
+	float MonopolyState[2][10];	//0-Player making deal	1-player deal is targeting
+	int Funds[2];				//0-(HUMAN)	1-(AI)
+};
+
+
+
+
 /* Frames (Menus):
  *
  * Main Game Board
@@ -178,18 +191,19 @@ struct TradeStruct
  */
 
 BoardTile Property[40];
-BoardTile PropertyDeed[40];
 Agents Player[4];
 
+// Structs used for trade menu and trade evaluation
+BoardTile PropertyDeed[40];
+BoardTile FurtureProperty[40];
+Agents FuturePlayer[4];
 TradeStruct Offer;
+BoardState Board[2];
 
-const int ButtonCount=110;	// old 30
-
-Element Button[ButtonCount];	//0-9 for numbers 0 to 9;	 10,11 for yes/no;	12,13,14,15 main,build,trade,mortgage
-					//Rework for button numbers, see below
+const int ButtonCount=110;	//Sets how many buttons, goes across many functions
+Element Button[ButtonCount];	//BuToNS to click on
 
 Element Line[2];		//Draw a line, used for trading menu
-
 Element Dice[2];		//game dice
 Element PlayerCount;	//displaces current ActivePlayer
 Element Debugger[10];	//debug printout in game window for testing
@@ -198,26 +212,6 @@ Element Cards[2];		//chest / chance cards
 Element NoticeBoard;	//use for main game board interactions
 						//chance, chest, buying property, paying dues
 						//can change colors/size based on situation used in
-/*	Buttons used:
-		Main:
-			0-3;	Roll Dice/End Turn,Build,Trade,Mortgage Menus		-mostly done
-			0-39;	BoardTiles
-		Trade:
-			0-11;	Num 0-9,Yes,No
-			0-39	BoardTiles
-		Build:
-			0-7;	(+/-)1,(+/-)2,(+/-)3,Accept,Cancel
-			0-39	BoardTiles
-		Mortgage:
-			0-39:	BoardTiles
-		Save Game:
-
-		Load Game:
-
-		Quite Game:
-
-*/
-
 
 /*	Game Board Buttons:		3rd rebuild
  *	0: End Turn
@@ -235,7 +229,7 @@ Element NoticeBoard;	//use for main game board interactions
  *	14: Accept		Universal across different states and frames
  *	15: Decline
  *
- *	16: '0'		Buttons for number pad, used in trading menu, may use keyboard numpad
+ *	16: '0'		these are now abandon
  *	17: '1'
  *	18:	'2'
  *	19:	'3'			7 8 9
@@ -2983,3 +2977,117 @@ int AI_Trade(void)
 
 	return Accept;
 }
+
+void BoardEvaluation(int DealMaker, int DealTarget)
+{
+	// Generate Monpoly state struct / /array for trade evaluation part
+
+	//Board[0]- current board, before trade
+	//Board[1]- furture board, is trade goes though
+
+	//MonopolyState[0][]- Monopoly Completion State for deal maker as a float for each block 0 - 7 , 8-Util, 9-RR
+	//MonopolyState[1][]- Monopoly Completion State for deal target as a float for each block 0 - 7 , 8-Util, 9-RR
+
+	int i=0;
+	int j=0;
+	int k=0;
+	int p=0;
+	int UtilCount[3]={0};	//0-Total, 1-Maker, 2-Target
+	int RRCount[3]={0};
+	int PropertyIndex[2]={0};	//Count of Properties owned by Maker,Target
+	int PropertyOwnedList[2][40]={0};
+	int PropBlockOwned[2][8]={0};
+	int PropBlockTotal[8]={0};
+
+	//BUILDING LIST FOR CURENT GAME BOARD
+
+	//build list, again, for property owned by maker and target only cares about buildable property
+	for(i=0;i<40;i++)
+	{
+		if(Property[i].Owner==DealMaker&&Property[i].Type==0)
+		{
+			PropertyOwnedList[0][PropertyIndex[0]]=i;
+			PropertyIndex[0]++;
+		}
+		if(Property[i].Owner==DealTarget&&Property[i].Type==0)
+		{
+			PropertyOwnedList[1][PropertyIndex[1]]=i;
+			PropertyIndex[1]++;
+		}
+	}
+	// Util // RR evaluation first, its easier, scalable for >2 Utils or >4 RR's, NOT recommend though
+
+	//Build list of all RR's and Util's and how many are owned by both Deal Maker and Deal Target
+	for(i=0;i<40;i++)
+	{
+		if(Property[i].Type==1)
+		{
+			UtilCount[0]++;
+			if(Property[i].Owner==DealMaker)
+				UtilCount[1]++;
+			if(Property[i].Owner==DealTarget)
+				UtilCount[2]++;
+		}
+		if(Property[i].Type==2)
+		{
+			RRCount[0]++;
+			if(Property[i].Owner==DealMaker)
+				RRCount[1]++;
+			if(Property[i].Owner==DealTarget)
+				RRCount[2]++;
+		}
+	}
+
+	//Build list property in the blocks own by each player and total props in that block
+	for(p=0;p<2;p++)
+	{
+		for(i=0;i<7;i++)
+		{
+			for(j=0;j<3;j++)
+			{
+				for(k=0;k<PropertyIndex[p];k++)
+				{
+					if(PropertyOwnedList[k]==MonopolyBlockLookUp[i][j])
+					{
+						//Prop in block is owned by player
+						PropBlockOwned[p][i]++;
+					}
+					if(MonopolyBlockLookUp[i][j]!=0&&p<1)
+						PropBlockTotal[i]++;
+				}
+			}
+		}
+	}
+
+	//Load in all the values into pre deal board state
+	for(i=0;i<2;i++)
+	{
+		for(j=0;j<8;j++)
+		{
+			Board[0].MonopolyState[i][j]=PropBlockOwned[j][i]/PropBlockTotal[j][i];
+		}
+		Board[0].MonopolyState[i][8]=UtilCount[0]/UtilCount[i+1];
+		Board[0].MonopolyState[i][9]=RRCount[0]/RRCount[i+1];
+	}
+
+	//BUILDING LIST FOR FUTURE GAME BOARD
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
+
+
+

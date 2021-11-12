@@ -78,6 +78,20 @@ int AI_Trade(void);					//IN:Offer Struct (Global var)
 void BoardEvaluation(int,int);		//IN:Deal Maker, Deal Target Player ID
 									//OUT:Fill in data for boardState Struct, used for trade evaluation
 
+void MainBoardAction(int);			//IN:Local ButtonClicked value from root ActionHandler
+									//OUT:Global vars about MainGameBoard
+
+void BuildAction(int);				//IN:Local ButtonClicked value from root ActionHandler
+									//OUT:Glboal vars about BuildBoard
+
+void TradeAction(int);				//IN:Loval ButtonClicked value from root ActionHandler
+									//OUT:Global vars about TradeBoard
+
+void MortgageAction(int);			//IN:Local ButtonClicked value from root ActionHandler
+									//OUT:Global varsa about MortgageBoard
+
+
+
 
 //Offset Data for drawing Players on GameBoard
 int POSXOffset[4]={10,10,35,35};	//10,10,35,35	normal(0-3) , corner(4-7)
@@ -2443,10 +2457,33 @@ void PropertyHandler(void)
 	//0-Normal,1-Util,2-RR,3-taxes,4-chest,5-chance,6-go,7-jail/visting,8-parking,9-goto jail
 
 	int ActiveProperty=Player[ActivePlayer].Pos;
+	NoticeBoardState=Property[ActiveProperty].Type+1;
+
 	if(Property[ActiveProperty].Type<3)
 	{
-		NoticeBoardState=Property[ActiveProperty].Type+1;
+		NoticeBoard.isVisible=1;
+		//Enable/set bits for NoticeBoardStatus Rendering
+		if(Property[ActiveProperty].Owner<0)
+		{
+			//Property NOT Owned, does player have funds to buy
+			if(Player[ActivePlayer].Money>Property[ActiveProperty].BuyCost)
+			{
+				Button[14].isVisible=1;
+				Button[15].isVisible=1;
+			}
+			else
+			{
+				Button[14].isVisible=0;
+				Button[15].isVisible=1;
+			}
+		}
+		else
+		{
+
+		}
 	}
+
+
 
 
 }
@@ -2980,6 +3017,8 @@ int AI_Trade(void)
 
 void BoardEvaluation(int DealMaker, int DealTarget)
 {
+	//Part of advance Trade AI, On Hold while added rest of gameboard features
+
 	// Generate Monpoly state struct / /array for trade evaluation part
 
 	//Board[0]- current board, before trade
@@ -3069,9 +3108,29 @@ void BoardEvaluation(int DealMaker, int DealTarget)
 		Board[0].MonopolyState[i][8]=UtilCount[0]/UtilCount[i+1];
 		Board[0].MonopolyState[i][9]=RRCount[0]/RRCount[i+1];
 	}
-
 	//BUILDING LIST FOR FUTURE GAME BOARD
 
+	//Copy Current BoardTile to Future BoardTile
+	// Feed that new data into above mess
+
+	//load furture with present
+	for(i=0;i<40;+)
+	{
+		FurtureProperty[i].Owner=Property[i].Owner;
+	}
+
+	//switch property
+	for(i=0;i<Offer.P_GP_Count;i++)
+	{
+		//Active Player get property
+		FurtureProperty[Offer.player_GetProp[i]].Owner=ActivePlayer;
+	}
+
+	for(i=0;i<Offer.T_GP_Count;i++)
+	{
+		//Target Player get property
+		FurtureProperty[Offer.target_GetProp[i]].Owner=TargetPlayer;
+	}
 
 
 
@@ -3084,8 +3143,58 @@ void BoardEvaluation(int DealMaker, int DealTarget)
 
 
 
+}
+
+void MainGameBoardAction(int ButtonClicked)
+{
+	int ActiveProperty=Player[ActivePlayer].Pos;
+
+	switch(NoticeBoardState)
+	{
+	case 0:
+		//NoticeBoard is not displayed, allow access to GameAction Buttons
+		break;
+	case 1..3:
+		//Property could have an owner, normal, util, rr
+		if(Property[ActiveProperty].Owner<0)
+		{
+			//Property NOT Owned
+
+		}
+		else
+		{
+			//Property IS Owned
+
+		}
+		break;
 
 
+
+	}
+}
+
+void BuildAction(int ButtonClicked)
+{
+
+}
+
+void TradeAction(int ButtonClicked)
+{
+
+}
+
+void MortgageAction(int ButtonClicked)
+{
+
+}
+
+void Chance(void)
+{
+
+}
+
+void Chest(void)
+{
 
 }
 

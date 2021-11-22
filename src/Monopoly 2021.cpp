@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <SFML/Graphics.hpp>
+#include <SFML/System.hpp>
 #include <SFML/Graphics/Rect.hpp>
 #include <time.h>
 #include <math.h>
@@ -90,6 +91,17 @@ void TradeAction(int);				//IN:Loval ButtonClicked value from root ActionHandler
 void MortgageAction(int);			//IN:Local ButtonClicked value from root ActionHandler
 									//OUT:Global varsa about MortgageBoard
 
+void StartUp_CC(void);				//IN:Global
+									//OUTGlobal, setup, initize Chest/Chest card data and draw order
+
+void ChanceFunc(void);				//IN:Global vars
+									//OUT:Update global vars
+
+void ChestFunc(void);				//IN:Global vars
+									//OUT:Update global vars
+
+int CardAction(int[4]);				//IN:Card parameters from chance/chest
+									//OUT:Error bool, update global vars
 
 
 
@@ -151,6 +163,8 @@ struct Agents
 	int hasAI;
 	int MonopoliesOwned[8]={0};	//dirty trick to track Completed Monopolies, sub 1 to get to LookUpTable array index
 
+	int GetOutJail[2];	//0,1,2 since both chance/chest have one, may have more since chest/chance can be modify
+
 	int PosX;
 	int PosY;
 
@@ -193,7 +207,22 @@ struct BoardState
 	int Funds[2];				//0-(HUMAN)	1-(AI)
 };
 
+//May not use for chest / chance, tie into original idea of using NoticeBoard
+struct GameCard
+{
+	int Num;
+	char Text[50];
+	int Parm[4];		//Parm[0]	Card Action Type: 0move player, 1collect, 2pay, 3collect others, 4pay others, 5property upkeep, 6getout jail, 7goto jail
+						//Parm[1 ... 3]		more details to take action
 
+						//Parm 0 [] [] []		moved fixed number of title, move to property id, move to property type
+						//Parm 5 [] []			house cost, hotel cost
+
+	sf::Text CardText;
+	sf::RectangleShape CardShape;
+	sf::Font TextFont;
+	sf::Texture CardTexture;
+};
 
 
 /* Frames (Menus):
@@ -214,6 +243,12 @@ Agents FuturePlayer[4];
 TradeStruct Offer;
 BoardState Board[2];
 
+int ChanceSeq[16];	//card sequence for drawing Chance / Chest
+int ChestSeq[16];
+
+int ChancePT=0;	//pointers for card stack
+int ChestPT=0;
+
 const int ButtonCount=110;	//Sets how many buttons, goes across many functions
 Element Button[ButtonCount];	//BuToNS to click on
 
@@ -226,6 +261,10 @@ Element Cards[2];		//chest / chance cards
 Element NoticeBoard;	//use for main game board interactions
 						//chance, chest, buying property, paying dues
 						//can change colors/size based on situation used in
+
+GameCard CommunityChest[16];
+GameCard Chance[16];
+
 
 /*	Game Board Buttons:		3rd rebuild
  *	0: End Turn
@@ -297,6 +336,7 @@ int main() {
 	StartUpPropertyDeed();
 	StartUpGameBoard();
 	PlayerSetUp();
+	StartUp_CC();
 	DrawGameBoard();
 		//	srand(time(NULL));
 
@@ -467,7 +507,6 @@ void StartUpPropertyName(void)
 	int BufferLen[40]={0};
 	int BufferOffSet=0;
 	FILE *fp;
-
 
 	//open file to get names, read in charactors to long buffer unit end of file
 	fp=fopen("bits/ini_values/Names.txt","r");
@@ -1000,7 +1039,7 @@ void StartUpGameBoard(void)
 		Button[i].ElementText.setColor(sf::Color::Black);
 		Button[i].ElementText.setCharacterSize(18);
 		Button[i].ElementText.setFont(Calibri);
-		Button[i].isVisible=1;
+		Button[i].isVisible=0;
 	}
 
 	//Setup for NoticeBoard interface
@@ -1093,7 +1132,7 @@ void StartUpGameBoard(void)
 		Button[10+i].ElementText.setFont(Calibri);
 
 	}
-	
+
 	//Draw 2 lines for trading menu design
 	for(i=0;i<2;i++)
 	{
@@ -1130,7 +1169,9 @@ void StartUpGameBoard(void)
 	Button[9].ElementText.setString("Submit\nOffer");
 	Button[28].ElementText.setString("Give\nCash Offer");
 	Button[29].ElementText.setString("Get\nCash Offer");
-	
+
+
+
 }
 
 void StartUpPropertyDeed(void)
@@ -1163,7 +1204,7 @@ void StartUpPropertyDeed(void)
 		PropertyDeed[i].TileNameText.setColor(sf::Color::Black);
 		PropertyDeed[i].TileNameText.setString(PropertyDeed[i].TileName);
 	}
-	
+
 	int OffsetY=110;
 	int OffsetX=70;
 
@@ -1171,12 +1212,12 @@ void StartUpPropertyDeed(void)
 	for(i=0;i<4;i++)
 	{
 		for(j=0;j<3;j++)
-		{			
+		{
 			PropertyDeed[MonopolyBlockLookUp[i][j]].TileOutline.setPosition(j*70+OffsetX,i*110+OffsetY);			//( x , y) >>   \/
 			PropertyDeed[MonopolyBlockLookUp[i][j]].TileBlockColor.setPosition(j*70+OffsetX,i*110+OffsetY);
 		}
 	}
-	
+
 	for(i=0;i<4;i++)
 	{
 		for(j=0;j<3;j++)
@@ -1188,7 +1229,7 @@ void StartUpPropertyDeed(void)
 
 	int RR_Count=0;
 	int Util_Count=0;
-	
+
 	for(i=0;i<40;i++)
 	{
 		//Railroad & Utility
@@ -1207,9 +1248,9 @@ void StartUpPropertyDeed(void)
 			PropertyDeed[i].TileBlockColor.setFillColor(sf::Color(127,127,127));
 			Util_Count++;
 		}
-		
+
 	}
-	
+
 	for(i=0;i<40;i++)
 	{
 		PropertyDeed[i].TileNameText.setPosition(PropertyDeed[i].TileBlockColor.getPosition().x,
@@ -1226,7 +1267,156 @@ void StartUpPropertyDeed(void)
 		PropertyDeed[i].PosY=PropertyDeed[i].TileOutline.getPosition().y;
 	}
 
-	
+
+}
+
+void StartUp_CC(void)
+{
+	//Chance / Chest StartUp and Initiation
+	FILE *fp;
+	int i=0;
+	int j=0;
+	int k=0;
+	int m=0;
+	char Buffer[800];
+
+	//Load in Data for Chance
+	fp=fopen("bits/ini_values/Chance.txt","r");
+
+	for(i=0;i<800;i++)
+	{
+		if(feof(fp))
+		{
+			break;
+		}
+		fscanf(fp,"%c",&Buffer[i]);
+		j++;
+	}
+	fclose(fp);
+	j--;//sub 1 to drop EOF
+
+	//break down single string buffer to 16 buffers per card
+	for(i=0;i<32;i++)
+	{
+		m=0;
+		while(Buffer[k]!='\n')
+		{
+			if(i%2==0)
+			{
+				Chance[i/2].Text[m]=Buffer[k];
+				m++;
+			}
+			k++;
+		}
+		if(i%2==0)
+			Chance[i/2].Text[m]='\0';
+		k++;
+	}
+
+	for(i=0;i<16;i++)
+	{
+		printf("%s\n",Chance[i].Text);
+	}
+
+	//Load in Data for Community Chest
+	i=0;
+	j=0;
+	k=0;
+	m=0;
+	fp=fopen("bits/ini_values/Chest.txt","r");
+
+	for(i=0;i<800;i++)
+	{
+		if(feof(fp))
+		{
+			break;
+		}
+		fscanf(fp,"%c",&Buffer[i]);
+		j++;
+	}
+	fclose(fp);
+	j--;//sub 1 to drop EOF
+
+	//break down single string buffer to 16 buffers per card
+	for(i=0;i<32;i++)
+	{
+		m=0;
+		while(Buffer[k]!='\n')
+		{
+			if(i%2==0)
+			{
+				CommunityChest[i/2].Text[m]=Buffer[k];
+				m++;
+			}
+			k++;
+		}
+		if(i%2==0)
+			CommunityChest[i/2].Text[m]='\0';
+		k++;
+	}
+
+	for(i=0;i<16;i++)
+	{
+		printf("%s\n",CommunityChest[i].Text);
+	}
+
+	//Load in Numeric data for chest and chance
+	fp=fopen("bits/ini_values/ChanceData.txt","r");
+	for(i=0;i<16;i++)
+	{
+		for(j=0;j<4;j++)
+		{
+			fscanf(fp,"%d",&Chance[i].Parm[j]);
+		}
+	}
+	fclose(fp);
+
+	fp=fopen("bits/ini_values/ChestData.txt","r");
+	for(i=0;i<16;i++)
+	{
+		for(j=0;j<4;j++)
+		{
+			fscanf(fp,"%d",&CommunityChest[i].Parm[j]);
+		}
+	}
+	fclose(fp);
+
+	//Generate card draw order for chest / chance
+	//will rnd later, can also be rand by change order in read-in file
+	for(i=0;i<16;i++)
+	{
+		ChestSeq[i]=i;
+		ChanceSeq[i]=i;
+	}
+
+	//Randomize Seq order
+	int num1=0;
+	int num2=0;
+	int buf=0;
+
+	for(i=0;i<200;i++)
+	{
+		num1=rand()%15;
+		num2=rand()%15;
+
+		buf=ChestSeq[num1];
+		ChestSeq[num1]=ChestSeq[num2];
+		ChestSeq[num2]=buf;
+	}
+
+	for(i=0;i<200;i++)
+	{
+		num1=rand()%15;
+		num2=rand()%15;
+
+		buf=ChanceSeq[num1];
+		ChanceSeq[num1]=ChanceSeq[num2];
+		ChanceSeq[num2]=buf;
+	}
+
+
+
+		//system("PAUSE");
 }
 
 void DrawGameBoard(void)
@@ -1450,92 +1640,28 @@ void DrawGameBoard(void)
 		window.draw(Cards[i].ElementShape);
 	}
 
-	//Draw Additive Game Elements form Property Handler State
-	int ActiveProperty=Player[ActivePlayer].Pos;
+	//Draw NoticeBoard with updated text
 
-	switch(NoticeBoardState)
+	if(NoticeBoardState==0)
 	{
-	case 0:
-		break;
-	case 1:
-		//Normal
-		if(Property[ActiveProperty].Owner==-1)
-			//Property is not owned
-			NoticeBoard.ElementText.setString("Buy Vacant Property");
-		else
-		{
-			//Property is owned
-			if(Property[ActiveProperty].Owner!=ActivePlayer)
-				NoticeBoard.ElementText.setString("Pay Rent");
-			else
-				NoticeBoard.ElementText.setString("Player Own Property");
-		}
-		break;
-	case 2:
-		//Utility
-		if(Property[ActiveProperty].Owner==-1)
-		{
-			//not own
-			NoticeBoard.ElementText.setString("Buy Vacant Utility");
-		}
-		else
-		{
-			//owned, but by who
-			if(Property[ActiveProperty].Owner!=ActivePlayer)
-				NoticeBoard.ElementText.setString("Pay Rent");
-			else
-				NoticeBoard.ElementText.setString("Player Own Property");
-		}
-		break;
-	case 3:
-		//RailRoad
-		if(Property[ActiveProperty].Owner==-1)
-		{
-			//not own
-			NoticeBoard.ElementText.setString("Buy Vacant RailRoad");
-		}
-		else
-		{
-			//owned, but by who
-			if(Property[ActiveProperty].Owner!=ActivePlayer)
-				NoticeBoard.ElementText.setString("Pay Rent");
-			else
-				NoticeBoard.ElementText.setString("Player Own Property");
-		}
-		break;
-	case 4:
-		//Chest
-		//NoticeBoardState=0;
-		break;
-	case 5:
-		//Chance
-		//NoticeBoardState=0;
-		break;
-		//6-GO, 7-Visting, 8-Parking, 9-JAIL
-	default:
-		//NoticeBoardState=0;
-		break;
+		NoticeBoard.ElementShape.setSize(sf::Vector2f(200,200));
+		NoticeBoard.ElementShape.setFillColor(sf::Color::White);
 	}
 
-	//Draw NoticeBoard with updated text
-	if(NoticeBoardState>0&&NoticeBoardState<4)
+
+	if(NoticeBoard.isVisible==1)
 	{
 		window.draw(NoticeBoard.ElementShape);
 		window.draw(NoticeBoard.ElementText);
-		window.draw(Button[14].ElementShape);	//green
-		window.draw(Button[14].ElementText);
-		if(Property[Player[ActivePlayer].Pos].Owner==-1)
-		{
-			window.draw(Button[15].ElementShape);	//red
-			window.draw(Button[15].ElementText);
-			Button[15].isVisible=1;
-		}
-		Button[14].isVisible=1;
 	}
-	else
+
+	for(i=14;i<16;i++)
 	{
-		Button[14].isVisible=0;
-		Button[15].isVisible=0;
+		if(Button[i].isVisible==1)
+		{
+			window.draw(Button[i].ElementShape);
+			window.draw(Button[i].ElementText);
+		}
 	}
 
 	//Draw ActivePlayer using debugger placeholder elements
@@ -1709,7 +1835,7 @@ void DrawTradeBoard(void)
 			}
 			window.draw(Button[i].ElementShape);
 			window.draw(Button[i].ElementText);
-		}	
+		}
 	}
 
 	Debugger[1].ElementText.setPosition(Button[29].ElementShape.getPosition().x,Button[29].ElementShape.getPosition().y-30);
@@ -1799,6 +1925,8 @@ void PlayerSetUp(void)
 		Player[i].isBankrupt=0;
 		Player[i].DB_roll=0;
 		Player[i].ID=i;
+		Player[i].GetOutJail[0]=0;	//chest GetOut
+		Player[i].GetOutJail[1]=0;	//chance GetOut
 	}
 
 	StartX=Property[0].TileOutline.getPosition().y+Property[0].TileOutline.getSize().y-Player[0].AgentSprite.getSize().y*2;
@@ -1952,7 +2080,7 @@ int ButtonHandler(void)
 
 		}
 	}
-	
+
 	if(ActiveFrame==2)
 	{
 		//Add support for clickable property deeds
@@ -1962,7 +2090,7 @@ int ButtonHandler(void)
 			ButtonHeight=PropertyDeed[i].TileOutline.getSize().y;
 			ButtonPosX=PropertyDeed[i].TileOutline.getPosition().x;
 			ButtonPosY=PropertyDeed[i].TileOutline.getPosition().y;
-			
+
 			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Property[i].Type<3)
 			{
 				ButtonClicked=i+200;
@@ -1988,250 +2116,13 @@ void PlayerActionHandler(int ButtonClicked)
 
 	//button pressed (0 - 29)
 	int i=0;
+	int DiceTotalHold=0;
 	int ActiveProperty=Player[ActivePlayer].Pos;
 	switch(ActiveFrame)
 	{
 	case 0:
 		//Main Game Board
-		switch(NoticeBoardState)	//may make NoticeBoardState a part of player struct
-		{
-		case 0:
-			//no notice board is drawn, carry on as normal for button 0 - 8 for main game board options
-			switch(ButtonClicked)
-			{
-			case 0:
-				//End Turn, can't end until rolled
-				if(Player[ActivePlayer].hasRolled==1)
-				{
-					Player[ActivePlayer].hasRolled=0;
-					ActivePlayer++;
-					if(ActivePlayer>3)
-						ActivePlayer=0;
-				}
-
-				break;
-			case 1:
-				//Return to Main Game Board
-				ActiveFrame=0;
-				break;
-			case 2:
-				//Save Game
-				SaveGame();
-				break;
-			case 3:
-				//Return to Build Menu
-				CheckMonopolyStatus();
-				ActiveFrame=1;
-				break;
-			case 4:
-				//Load Game
-				LoadGame();
-				break;
-			case 5:
-				//Return to Trade Menu
-				CashOfferMode=0;
-				for(i=10;i<14;i++)
-				{
-					Button[i].isVisible=1;
-				}
-				TargetPlayer=5;
-				ActiveFrame=2;
-				break;
-			case 6:
-				//Quit Game
-				window.close();
-				break;
-			case 7:
-				//Return to Mortgage Menu
-				ActiveFrame=3;
-				break;
-			case 8:
-				//Roll Dice
-				if(Player[ActivePlayer].hasRolled==0)
-				{
-					PlayerTravelAnimate(RollDice());
-					Player[ActivePlayer].hasRolled=1;
-				}
-				break;
-			default:
-				//catch when ButtonClicked is (-1)
-				break;
-			}
-			break;
-		case 1:
-			//Player landed on Property
-				//diable all buttons but "accept"(14) and "decline"(15)
-			//check if Property is OWNED
-			if(Property[ActiveProperty].Owner==-1)
-			{
-				//property is NOT OWNED
-				//accept/decline, update property values, player funds
-				if(ButtonClicked==14)
-				{
-					//buy property purchase
-					Property[ActiveProperty].Owner=ActivePlayer;
-					Player[ActivePlayer].Money-=Property[ActiveProperty].BuyCost;
-					NoticeBoardState=0;
-				}
-				if(ButtonClicked==15)
-				{
-					//decline property purchase
-					NoticeBoardState=0;
-				}
-			}
-			else
-			{
-				//property is OWNED
-				if(Property[ActiveProperty].Owner==ActivePlayer)
-				{
-					//Player Owned, no action
-					if(ButtonClicked==14)
-					{
-						//acknowledge, slow game speed down
-						NoticeBoardState=0;
-					}
-				}
-				else
-				{
-					//Other Player Owned, pay rent
-					if(ButtonClicked==14)
-					{
-						//acknowledge, slow game speed down
-						NoticeBoardState=0;
-						Player[Property[ActiveProperty].Owner].Money+=Property[ActiveProperty].Rent[Property[ActiveProperty].HouseCount];
-						Player[ActivePlayer].Money-=Property[ActiveProperty].Rent[Property[ActiveProperty].HouseCount];
-					}
-				}
-
-			}
-			break;
-		case 2:
-			//Player landed on Utility
-				//Roll Dice for Rent Price
-			if(Property[ActiveProperty].Owner==-1)
-			{
-				//Utility is NOT OWNED
-				//accept/decline, update property values, player funds
-				if(ButtonClicked==14)
-				{
-					//buy Utility purchase
-					Property[ActiveProperty].Owner=ActivePlayer;
-					Player[ActivePlayer].Money-=Property[ActiveProperty].BuyCost;
-					NoticeBoardState=0;
-				}
-				if(ButtonClicked==15)
-				{
-					//decline Utility purchase
-					NoticeBoardState=0;
-				}
-			}
-			else
-			{
-			//Utility is OWNED
-				//acknowledge, slow game speed down
-
-				if(Property[ActiveProperty].Owner==ActivePlayer)
-				{
-					//Player Own, do nothing
-					if(ButtonClicked==14)
-					{
-						NoticeBoardState=0;
-					}
-				}
-				else
-				{
-					//Pay Rent
-					if(ButtonClicked==14)
-					{
-						if(Property[12].Owner==Property[28].Owner)	//bit hard coded. will come back later
-						{
-							// dice roll x10
-							//DiceTotal();
-							Player[Property[ActiveProperty].Owner].Money+=(RollDice()*10);
-							Player[ActivePlayer].Money-=(RollDice()*10);
-						}
-						else
-						{
-							//dice roll x4
-							Player[Property[ActiveProperty].Owner].Money+=(RollDice()*4);
-							Player[ActivePlayer].Money-=(RollDice()*4);
-						}
-						NoticeBoardState=0;
-					}
-				}
-			}
-			break;
-		case 3:
-			//Player landed on RailRoad
-			if(Property[ActiveProperty].Owner==-1)
-			{
-				//RailRoad is NOT OWNED
-				//accept/decline, update property values, player funds
-				if(ButtonClicked==14)
-				{
-					//buy RailRoad purchase
-					Property[ActiveProperty].Owner=ActivePlayer;
-					Player[ActivePlayer].Money-=Property[ActiveProperty].BuyCost;
-					NoticeBoardState=0;
-				}
-				if(ButtonClicked==15)
-				{
-					//decline RailRoad purchase
-					NoticeBoardState=0;
-				}
-			}
-			else
-			{
-				//RailRoad is OWNED
-				int RR_Count=0;
-				for(i=0;i<40;i++)
-				{
-					//Run though all property, just in case game files were modded, and railroads were changed
-					//count railroads own by owner of current railroad
-					if(Property[i].Owner==Property[ActiveProperty].Owner&&Property[i].Type==2)
-					{
-						RR_Count++;
-					}
-				}
-
-				if(RR_Count>4)
-					RR_Count=4;
-
-				if(Property[ActiveProperty].Owner==ActivePlayer)
-				{
-					//Player own, do nothing
-					if(ButtonClicked==14)
-					{
-						NoticeBoardState=0;
-					}
-				}
-				else
-				{
-					if(ButtonClicked==14)
-					{
-						Player[Property[ActiveProperty].Owner].Money+=100;	//filler until later
-						Player[ActivePlayer].Money-=100;
-						NoticeBoardState=0;
-					}
-				}
-			}
-			break;
-		case 4:
-			//Player landed on Tax
-			NoticeBoardState=0;
-			break;
-		case 5:
-			//Player landed on Community Chest
-			NoticeBoardState=0;
-			break;
-		case 6:
-			//Player landed on Chance
-			NoticeBoardState=0;
-			break;
-		default:
-			NoticeBoardState=0;
-			break;
-		}
+		MainBoardAction(ButtonClicked);
 		break;
 	case 1:
 		//Build
@@ -2241,7 +2132,7 @@ void PlayerActionHandler(int ButtonClicked)
 			ActiveFrame=0;
 			break;
 		case 5:
-			//Return to Trade Menu	
+			//Return to Trade Menu
 			for(i=10;i<14;i++)
 			{
 				Button[i].isVisible=1;
@@ -2286,9 +2177,9 @@ void PlayerActionHandler(int ButtonClicked)
 			Offer.target_GetFunds=0;
 			ActiveFrame=0;
 		break;
-		
+
 		case 9:
-			//Player is done with building trade, send offer to AI	
+			//Player is done with building trade, send offer to AI
 			printf("Trade Offer Submitted\n");
 			PropertyExchange(AI_Trade());
 			ActiveFrame=0;
@@ -2302,7 +2193,7 @@ void PlayerActionHandler(int ButtonClicked)
 			{
 				Button[i].isVisible=1;
 			}
-		break;		
+		break;
 
 		case 3:
 			//Return to Build Menu
@@ -2316,7 +2207,7 @@ void PlayerActionHandler(int ButtonClicked)
 			//handles building trade offer
 			TradeOfferBuilder(ButtonClicked);
 		break;
-				
+
 		case 28:
 			//Player Give Cash
 			if(CashOfferMode==2)
@@ -2324,7 +2215,7 @@ void PlayerActionHandler(int ButtonClicked)
 			else
 				CashOfferMode=2;
 		break;
-				
+
 		case 29:
 			//Player Get Cash
 			if(CashOfferMode==1)
@@ -2332,7 +2223,7 @@ void PlayerActionHandler(int ButtonClicked)
 			else
 				CashOfferMode=1;
 		break;
-				
+
 		}
 		break;
 	case 3:
@@ -2379,7 +2270,7 @@ char* IntToString(int BaseNum, int setting)
 		StringBuffer[0]='$';
 		i++;
 	}
-	
+
 	if(setting==2)
 	{
 		StringBuffer[0]='P';
@@ -2457,14 +2348,34 @@ void PropertyHandler(void)
 	//0-Normal,1-Util,2-RR,3-taxes,4-chest,5-chance,6-go,7-jail/visting,8-parking,9-goto jail
 
 	int ActiveProperty=Player[ActivePlayer].Pos;
+	NoticeBoard.isVisible=0;
+	Button[14].isVisible=0;
+	Button[15].isVisible=0;
 	NoticeBoardState=Property[ActiveProperty].Type+1;
 
-	if(Property[ActiveProperty].Type<3)
+	switch(Property[ActiveProperty].Type)
 	{
+	case 0 ... 2:
+	//Property Normal, Utility, RailRoad
 		NoticeBoard.isVisible=1;
 		//Enable/set bits for NoticeBoardStatus Rendering
 		if(Property[ActiveProperty].Owner<0)
 		{
+			switch(Property[ActiveProperty].Type)
+			{
+			case 0:
+				NoticeBoard.ElementText.setString("Buy Vacant Property");
+				break;
+			case 1:
+				NoticeBoard.ElementText.setString("Buy Vacant Utility");
+				break;
+			case 2:
+				NoticeBoard.ElementText.setString("Buy Vacant RailRoad");
+				break;
+			default:
+				break;
+			}
+
 			//Property NOT Owned, does player have funds to buy
 			if(Player[ActivePlayer].Money>Property[ActiveProperty].BuyCost)
 			{
@@ -2472,16 +2383,65 @@ void PropertyHandler(void)
 				Button[15].isVisible=1;
 			}
 			else
-			{
-				Button[14].isVisible=0;
 				Button[15].isVisible=1;
-			}
+
 		}
 		else
 		{
-
+			//Property IS Owned, add check for bankrupt, builder menu / mortgage menu / remove player
+			if(Property[ActiveProperty].Owner==ActivePlayer)
+				NoticeBoardState=0;
+			else
+				NoticeBoard.ElementText.setString("Pay Rent");
+			Button[14].isVisible=1;
 		}
+		break;
+	case 3:
+	//Property Taxes, Tax value is property buy values, allow for different tax values
+		Player[ActivePlayer].Money-=Property[ActiveProperty].BuyCost;
+		NoticeBoardState=0;
+		break;
+	case 4:
+	//Community Chest
+		Button[14].isVisible=1;
+		NoticeBoard.isVisible=1;
+		NoticeBoardState=5;
+		ChestFunc();
+		break;
+	case 5:
+	//Chance
+		Button[14].isVisible=1;
+		NoticeBoard.isVisible=1;
+		NoticeBoardState=6;
+		ChanceFunc();
+		break;
+	case 6:
+	//GO
+		Player[ActivePlayer].Money+=200;
+		NoticeBoardState=0;
+		break;
+	case 7:
+	//Just Visting / Jail
+		//Still need to work out how jail works
+		NoticeBoardState=0;
+		break;
+	case 8:
+	//Free Parking
+		Player[ActivePlayer].Money+=500;
+		NoticeBoardState=0;
+		break;
+	case 9:
+	//GO TO JAIL
+		Player[ActivePlayer].inJail=1;
+		Player[ActivePlayer].inJail=0;		//Temp since Jail is not workin yet
+		Player[ActivePlayer].Pos=10;
+		NoticeBoardState=0;
+		break;
+	default:
+		printf("PropertyHandler Type LookUp Failed\n");
+		break;
 	}
+
 
 
 
@@ -2605,11 +2565,11 @@ int AI_TURN(void)
 		break;
 	case 5:
 		//Chest
-		//ButtonClickedState=14;
+		AI_ButtonClicked=14;
 		break;
 	case 6:
 		//Chance
-		//ButtonClickedState=14;
+		AI_ButtonClicked=14;
 		break;
 	case 7:
 		//GO
@@ -2815,7 +2775,7 @@ void TradeOfferBuilder(int DeedClicked)
 	int removeVal=DeedClicked;
 	int removeIndex=0;
 	printf("PROPERTY DEED CLICKED: %d\n",DeedClicked);
-	
+
 	if(PropertyDeed[DeedClicked].TileOutline.getOutlineColor()==sf::Color::Black)
 	{
 		//Add property to list
@@ -3027,6 +2987,8 @@ void BoardEvaluation(int DealMaker, int DealTarget)
 	//MonopolyState[0][]- Monopoly Completion State for deal maker as a float for each block 0 - 7 , 8-Util, 9-RR
 	//MonopolyState[1][]- Monopoly Completion State for deal target as a float for each block 0 - 7 , 8-Util, 9-RR
 
+	/*
+
 	int i=0;
 	int j=0;
 	int k=0;
@@ -3113,8 +3075,8 @@ void BoardEvaluation(int DealMaker, int DealTarget)
 	//Copy Current BoardTile to Future BoardTile
 	// Feed that new data into above mess
 
-	//load furture with present
-	for(i=0;i<40;+)
+	//load future with present
+	for(i=0;i<40;i++)
 	{
 		FurtureProperty[i].Owner=Property[i].Owner;
 	}
@@ -3133,7 +3095,7 @@ void BoardEvaluation(int DealMaker, int DealTarget)
 	}
 
 
-
+*/
 
 
 
@@ -3145,31 +3107,200 @@ void BoardEvaluation(int DealMaker, int DealTarget)
 
 }
 
-void MainGameBoardAction(int ButtonClicked)
+void MainBoardAction(int ButtonClicked)
 {
 	int ActiveProperty=Player[ActivePlayer].Pos;
+	int DiceTotalHold=0;
+	int i=0;
+	int RR_Count=0;
 
 	switch(NoticeBoardState)
 	{
 	case 0:
-		//NoticeBoard is not displayed, allow access to GameAction Buttons
-		break;
-	case 1..3:
-		//Property could have an owner, normal, util, rr
-		if(Property[ActiveProperty].Owner<0)
+	//NoticeBoard is not displayed, allow access to GameAction Buttons
+		switch(ButtonClicked)
 		{
-			//Property NOT Owned
+		case 0:
+			//End Turn, can't end until rolled
+			if(Player[ActivePlayer].hasRolled==1)
+			{
+				Player[ActivePlayer].hasRolled=0;
+				ActivePlayer++;
+				if(ActivePlayer>3)
+					ActivePlayer=0;
+			}
+
+			break;
+		case 1:
+			//Return to Main Game Board
+			ActiveFrame=0;
+			break;
+		case 2:
+			//Save Game
+			SaveGame();
+			break;
+		case 3:
+			//Return to Build Menu
+			CheckMonopolyStatus();
+			ActiveFrame=1;
+			break;
+		case 4:
+			//Load Game
+			LoadGame();
+			break;
+		case 5:
+			//Return to Trade Menu
+			CashOfferMode=0;
+			for(i=10;i<14;i++)
+			{
+				Button[i].isVisible=1;
+			}
+			TargetPlayer=5;
+			ActiveFrame=2;
+			break;
+		case 6:
+			//Quit Game
+			window.close();
+			break;
+		case 7:
+			//Return to Mortgage Menu
+			ActiveFrame=3;
+			break;
+		case 8:
+			//Roll Dice
+			if(Player[ActivePlayer].hasRolled==0)
+			{
+				if(Player[ActivePlayer].inJail==1)
+				{
+					DiceTotalHold=RollDice();
+					if(Player[ActivePlayer].DB_roll==1)
+					{
+						Player[ActivePlayer].inJail=0;
+					}
+
+				}
+				else
+					PlayerTravelAnimate(RollDice());
+
+				Player[ActivePlayer].hasRolled=1;
+			}
+			break;
+		default:
+			//catch when ButtonClicked is (-1)
+			break;
+		}
+		break;
+	case 1 ... 3:
+	//Property may have owner, pay rent / buy property
+		if(ButtonClicked==15||ButtonClicked==14)
+		{
+			if(ButtonClicked==14)
+			{
+				if(Property[ActiveProperty].Owner<0)
+				{
+					Property[ActiveProperty].Owner=ActivePlayer;
+					Player[ActivePlayer].Money-=Property[ActiveProperty].BuyCost;
+				}
+				else
+				{
+					switch(Property[ActiveProperty].Type)
+					{
+					case 0:
+						//Pay Rent Normal Property
+						Player[Property[ActiveProperty].Owner].Money+=Property[ActiveProperty].Rent[Property[ActiveProperty].HouseCount];
+						Player[ActivePlayer].Money-=Property[ActiveProperty].Rent[Property[ActiveProperty].HouseCount];
+						break;
+					case 1:
+						//Pay Rent Utility
+						if(Property[12].Owner==Property[28].Owner)	//bit hard coded. will come back later
+						{
+							// dice roll x10
+							//DiceTotal();
+							Player[Property[ActiveProperty].Owner].Money+=(RollDice()*10);
+							Player[ActivePlayer].Money-=(RollDice()*10);
+						}
+						else
+						{
+							//dice roll x4
+							Player[Property[ActiveProperty].Owner].Money+=(RollDice()*4);
+							Player[ActivePlayer].Money-=(RollDice()*4);
+						}
+						break;
+					case 2:
+						//Pay Rent Railroad
+						for(i=0;i<40;i++)
+						{
+							if(Property[i].Type==2&&Property[i].Owner==Property[ActiveProperty].Owner)
+								RR_Count++;
+						}
+
+						Player[ActivePlayer].Money-=Property[ActiveProperty].Rent[RR_Count];
+						Player[Property[ActiveProperty].Owner].Money+=Property[ActiveProperty].Rent[RR_Count];
+
+						break;
+					default:
+						break;
+					}
+
+				}
+			}
+			NoticeBoardState=0;
+			Button[14].isVisible=0;
+			Button[15].isVisible=0;
+			NoticeBoard.isVisible=0;
+		}
+		break;
+	case 4:
+		//tax, no action needed
+		break;
+	case 5:
+		//Chest, Click OK
+		NoticeBoardState=0;
+		Button[14].isVisible=0;
+		NoticeBoard.isVisible=0;
+		if(ButtonClicked==14)
+		{
+			int error=CardAction(CommunityChest[ChestSeq[ChestPT]].Parm);
+			if(error==1)
+			{
+				ChestPT++;
+				error=CardAction(CommunityChest[ChestSeq[ChestPT]].Parm);
+			}
 
 		}
-		else
+
+		break;
+	case 6:
+		//Chance. Click OK
+		NoticeBoardState=0;
+		Button[14].isVisible=0;
+		NoticeBoard.isVisible=0;
+		if(ButtonClicked==14)
 		{
-			//Property IS Owned
+			int error=CardAction(Chance[ChanceSeq[ChancePT]].Parm);
+			if(error==1)
+			{
+				ChancePT++;
+				error=CardAction(Chance[ChanceSeq[ChancePT]].Parm);
+			}
 
 		}
 		break;
-
-
-
+	case 7:
+		//GO, no action neeeded
+		break;
+	case 8:
+		//Jail / Visting, use in part of jail roll
+		break;
+	case 9:
+		//Parking, no action needed
+		break;
+	case 10:
+		//GO to JAIL, click OK
+		break;
+	default:
+		printf("Main Board Action Handler Type ERROR\n");
+		break;
 	}
 }
 
@@ -3188,15 +3319,125 @@ void MortgageAction(int ButtonClicked)
 
 }
 
-void Chance(void)
+void ChanceFunc(void)
 {
+	NoticeBoard.ElementShape.setFillColor(sf::Color(255,161,0));
+	NoticeBoard.ElementShape.setSize(sf::Vector2f(300,200));
+	NoticeBoard.ElementText.setString(Chance[ChanceSeq[ChancePT]].Text);
 
+	ChancePT++;
+	if(ChancePT>15)
+		ChancePT=0;
 }
 
-void Chest(void)
+void ChestFunc(void)
 {
+	NoticeBoard.ElementShape.setFillColor(sf::Color::Cyan);
+	NoticeBoard.ElementShape.setSize(sf::Vector2f(300,200));
+	NoticeBoard.ElementText.setString(CommunityChest[ChestSeq[ChestPT]].Text);
 
+	ChestPT++;
+	if(ChestPT>15)
+		ChestPT=0;
 }
 
+int CardAction(int Parm[4])
+{
+	int i=0;
+	int j=0;
+	int HouseTotel[2]={0};
 
+	for(i=0;i<4;i++)
+	{
+		if(Player[i].isBankrupt==0)
+			j++;
+	}
+
+	printf("Parm: %d, %d, %d, %d\n",Parm[0],Parm[1],Parm[2],Parm[3]);
+
+	switch(Parm[0])
+	{
+	case 0:
+		//move player around board, fixed amount, to property, to type
+		if(Parm[1]==-1)
+		{
+			if(Parm[2]==-1)
+			{
+				//Move to Type
+				i=Player[ActivePlayer].Pos;
+				while(Property[i].Type!=Parm[3])
+				{
+					i++;
+					if(i>39)
+						i=0;
+				}
+				Player[ActivePlayer].Pos=i;
+			}
+			else
+			{
+				//Move to Prop
+				Player[ActivePlayer].Pos=Parm[2];
+			}
+		}
+		else
+		{
+			//Move Fixed, always a positive number, will loop around if moving back 3 spaces
+			Player[ActivePlayer].Pos+=Parm[1];
+			if(Player[ActivePlayer].Pos>39)
+				Player[ActivePlayer].Pos-=39;
+		}
+		PropertyHandler();
+		break;
+	case 1:
+		//player collect fixed $
+		Player[ActivePlayer].Money+=Parm[1];
+		break;
+	case 2:
+		//player pay fixed $
+		Player[ActivePlayer].Money-=Parm[1];
+		break;
+	case 3:
+		//player collect, rest pay
+		Player[ActivePlayer].Money+=Parm[1]*j;
+		for(i=0;i<4;i++)
+		{
+			Player[i].Money-=Parm[1];
+		}
+		break;
+	case 4:
+		//player pays, rest collect
+		Player[ActivePlayer].Money-=Parm[1]*j;
+		for(i=0;i<4;i++)
+		{
+			Player[i].Money+=Parm[1];
+		}
+		break;
+	case 5:
+		//property upkeep
+		for(i=0;i<40;i++)
+		{
+			if(Property[i].Owner==ActivePlayer)
+			{
+				if(Property[i].HouseCount>4)
+					HouseTotel[1]++;
+				else
+					HouseTotel[0]+=Property[i].HouseCount;
+
+				Player[ActivePlayer].Money-=(HouseTotel[0]*Parm[1]+HouseTotel[1]*Parm[2]);
+			}
+		}
+		break;
+	case 6:
+		//GOJF card, come back to later
+		break;
+	case 7:
+		//GTJ, come back to later
+		break;
+	default:
+		printf("Chest / Chance Action Type Lookup Failed\n");
+		break;
+	}
+
+	return 0;
+}
 

@@ -1,0 +1,32 @@
+Advance to GO
+0 -1 0 -1
+Bank Error, Collect $200
+1 200 0 0
+Doctor's Fee, Pay $50
+2 50 0 0
+Sale Stock, Collect $50
+1 50 0 0
+Get Out of Jail Free
+6 0 0 0
+GO TO JAIL
+7 0 0 0
+Holiday Fund Mature, Collect $100
+1 100 0 0
+Tax Refund, Collect $20
+1 20 0 0
+Birthday, Collect $10 each player
+3 10 0 0
+Life Insurance Mature, Collect $100
+1 100 0 0
+Hospital Frees, Pay $100
+2 100 0 0
+School Fees, Pay $50
+2 50 0 0
+Consult Fee, Pay $25
+2 25 0 0
+Street repair, $40/house, $115/hotel
+5 40 115 0
+2nd place in beauty contest, Collect $10
+1 10 0 0
+Inherit $100
+1 10 0 0

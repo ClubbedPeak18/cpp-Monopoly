@@ -37,8 +37,8 @@ void DrawGameBoard(void);			//SFML Draw Calls for Main Game Board
 void DrawBuildBoard(void);			//SFML Draw Calls for Building Menu
 void DrawTradeBoard(void);			//SFML Draw Calls for Trading Menu
 void TileNameToTextBox(void);		//WIP for cosmetic upgrade to Property Name Data
-void PlayerSetUp(void);				//Setup for Player Number&Drawing Data
-void PlayerTravelAnimate(int);		//Animate Players moving around gameboard
+void StartUpPlayer(void);			//Setup for Player Number&Drawing Data
+void PlayerMovement(void);		//Animate Players moving around gameboard
 
 int ButtonHandler(void);			//IN:Global Variables	::start of code clean up
 									//OUT:Returns button number clicked, no button default to '-1' output
@@ -103,6 +103,8 @@ void ChestFunc(void);				//IN:Global vars
 int CardAction(int[4]);				//IN:Card parameters from chance/chest
 									//OUT:Error bool, update global vars
 
+void SetPlayerPosition(int);		//IN:Global vars, player pos / Jail / DB State
+									//OUT:SFML Draw calls
 
 
 //Offset Data for drawing Players on GameBoard
@@ -157,6 +159,7 @@ struct Agents
 	int Pos;
 	int Money;
 	int DB_roll;
+	int DB_count;
 	int inJail;
 	int isBankrupt;
 	int hasRolled;
@@ -167,6 +170,9 @@ struct Agents
 
 	int PosX;
 	int PosY;
+
+	int VelX;
+	int VelY;
 
 	sf::RectangleShape AgentSprite;
 	sf::Texture AgentTexture;
@@ -248,6 +254,9 @@ int ChestSeq[16];
 
 int ChancePT=0;	//pointers for card stack
 int ChestPT=0;
+
+int Aceleration=1;
+int MovementActive=0;
 
 const int ButtonCount=110;	//Sets how many buttons, goes across many functions
 Element Button[ButtonCount];	//BuToNS to click on
@@ -335,7 +344,7 @@ int main() {
 	StartUpPropertySpec();
 	StartUpPropertyDeed();
 	StartUpGameBoard();
-	PlayerSetUp();
+	StartUpPlayer();
 	StartUp_CC();
 	DrawGameBoard();
 		//	srand(time(NULL));
@@ -381,11 +390,19 @@ int main() {
 					break;
 
 				case Event::KeyPressed:
-					printf("key code is: %d\n",event.key.code);
+					//printf("key code is: %d\n",event.key.code);
 					//used for making a cash offer in trade, more fun then typeing keyboard on screen, easier to make, maybe
 					if(event.key.code==58||event.key.code==36)	//ENTER or ESC to exit number entery
 					{
 						CashOfferMode=0;
+					}
+
+					if(event.key.code==Keyboard::Q)
+					{
+						for(i=0;i<40;i++)
+						{
+							Property[i].TileOutline.rotate(10);
+						}
 					}
 
 					if(((event.key.code>74)&&(event.key.code<85))||((event.key.code>25)&&(event.key.code<36)))
@@ -1398,17 +1415,12 @@ void StartUp_CC(void)
 	{
 		num1=rand()%15;
 		num2=rand()%15;
-
 		buf=ChestSeq[num1];
 		ChestSeq[num1]=ChestSeq[num2];
 		ChestSeq[num2]=buf;
-	}
 
-	for(i=0;i<200;i++)
-	{
 		num1=rand()%15;
 		num2=rand()%15;
-
 		buf=ChanceSeq[num1];
 		ChanceSeq[num1]=ChanceSeq[num2];
 		ChanceSeq[num2]=buf;
@@ -1511,7 +1523,7 @@ void DrawGameBoard(void)
 
 	}
 
-
+/*
 	for(i=0;i<4;i++)
 	{
 		//draw players
@@ -1589,11 +1601,9 @@ void DrawGameBoard(void)
 			}
 			break;
 		}
-
-
-
 		window.draw(Player[i].AgentSprite);
 	}
+*/
 
 	for(i=0;i<40;i++)
 	{
@@ -1667,9 +1677,17 @@ void DrawGameBoard(void)
 	//Draw ActivePlayer using debugger placeholder elements
 	window.draw(Debugger[0].ElementText);
 
+	//Draw Player Sprites
+	for(i=0;i<4;i++)
+	{
+		window.draw(Player[i].AgentSprite);
+	}
+
+
+
 	//MAIN DRAW Call
 	window.display();
-	window.setFramerateLimit(30);
+	window.setFramerateLimit(60);
 
 }
 
@@ -1857,7 +1875,7 @@ void DrawTradeBoard(void)
 
 
 	window.display();
-	window.setFramerateLimit(30);
+	window.setFramerateLimit(60);
 }
 
 void TileNameToTextBox(void)
@@ -1902,7 +1920,7 @@ void TileNameToTextBox(void)
 
 }
 
-void PlayerSetUp(void)
+void StartUpPlayer(void)
 {
 	int i=0;
 	Player[0].AgentTexture.loadFromFile("bits/sprits/P1.png");
@@ -1924,6 +1942,7 @@ void PlayerSetUp(void)
 		Player[i].inJail=0;
 		Player[i].isBankrupt=0;
 		Player[i].DB_roll=0;
+		Player[i].DB_count=0;
 		Player[i].ID=i;
 		Player[i].GetOutJail[0]=0;	//chest GetOut
 		Player[i].GetOutJail[1]=0;	//chance GetOut
@@ -1950,8 +1969,41 @@ void PlayerSetUp(void)
 		//	MenuButton[10].setTexture(&BG_img[19]);
 }
 
-void PlayerTravelAnimate(int DiceTotal)
+void PlayerMovement(void)
 {
+
+	MovementActive=1;
+	while(Player[ActivePlayer].AgentSprite.getPosition().x!=Player[ActivePlayer].PosX||Player[ActivePlayer].AgentSprite.getPosition().y!=Player[ActivePlayer].PosY)
+	{
+		//Either X or Y is not aligned with new position, keep moving
+		//if with 5 px of target, just jump to taget
+		if(Player[ActivePlayer].AgentSprite.getPosition().x<Player[ActivePlayer].PosX+5&&Player[ActivePlayer].AgentSprite.getPosition().x>Player[ActivePlayer].PosX-5)
+		{
+			Player[ActivePlayer].AgentSprite.setPosition(Player[ActivePlayer].PosX,Player[ActivePlayer].AgentSprite.getPosition().y);
+		}
+		else
+		{
+			if(Player[ActivePlayer].AgentSprite.getPosition().x>Player[ActivePlayer].PosX)
+				Player[ActivePlayer].AgentSprite.move(sf::Vector2f(-9,0));
+			else
+				Player[ActivePlayer].AgentSprite.move(sf::Vector2f(9,0));
+		}
+
+		if(Player[ActivePlayer].AgentSprite.getPosition().y<Player[ActivePlayer].PosY+5&&Player[ActivePlayer].AgentSprite.getPosition().y>Player[ActivePlayer].PosY-5)
+			Player[ActivePlayer].AgentSprite.setPosition(Player[ActivePlayer].AgentSprite.getPosition().x,Player[ActivePlayer].PosY);
+		else
+		{
+			if(Player[ActivePlayer].AgentSprite.getPosition().y>Player[ActivePlayer].PosY)
+				Player[ActivePlayer].AgentSprite.move(sf::Vector2f(0,-9));
+			else
+				Player[ActivePlayer].AgentSprite.move(sf::Vector2f(0,9));
+		}
+		//sf::sleep(sf::milliseconds(500));		//wait 1 sec
+		DrawGameBoard();
+	}
+	MovementActive=0;
+
+	/*		OLD player movement around board
 	int i=0;
 	for(i=0;i<DiceTotal;i++)
 	{
@@ -1965,6 +2017,9 @@ void PlayerTravelAnimate(int DiceTotal)
 		}
 		DrawGameBoard();
 	}
+	*/
+
+
 	PropertyHandler();
 
 }
@@ -2061,46 +2116,50 @@ int ButtonHandler(void)
 	//runs through all button elements and check is any were clicked
 	//return value of button that is clicked, -1 for none, 0-button0, 1-button1  ....
 	//Handles normal buttons for frame
-	for(i=0;i<ButtonCount;i++)
+
+	if(MovementActive==0)	//save guard from clicking while players are still moveing around board
 	{
-		ButtonWidth=Button[i].ElementShape.getSize().x;
-		ButtonHeight=Button[i].ElementShape.getSize().y;
-		ButtonPosX=Button[i].ElementShape.getPosition().x;
-		ButtonPosY=Button[i].ElementShape.getPosition().y;
-
-		if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Button[i].isVisible==1)
+		for(i=0;i<ButtonCount;i++)
 		{
-			ButtonClicked=i;
-			printf("Button %d Pressed\n",i);
-			if(ActiveFrame==2)
+			ButtonWidth=Button[i].ElementShape.getSize().x;
+			ButtonHeight=Button[i].ElementShape.getSize().y;
+			ButtonPosX=Button[i].ElementShape.getPosition().x;
+			ButtonPosY=Button[i].ElementShape.getPosition().y;
+
+			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Button[i].isVisible==1)
 			{
-				if((ButtonClicked>9&&ButtonClicked<14)&&(ButtonClicked-10!=ActivePlayer))
-					TargetPlayer=i-10;
-			}
+				ButtonClicked=i;
+				printf("Button %d Pressed\n",i);
+				if(ActiveFrame==2)
+				{
+					if((ButtonClicked>9&&ButtonClicked<14)&&(ButtonClicked-10!=ActivePlayer))
+						TargetPlayer=i-10;
+				}
 
-		}
-	}
-
-	if(ActiveFrame==2)
-	{
-		//Add support for clickable property deeds
-		for(i=0;i<40;i++)
-		{
-			ButtonWidth=PropertyDeed[i].TileOutline.getSize().x;
-			ButtonHeight=PropertyDeed[i].TileOutline.getSize().y;
-			ButtonPosX=PropertyDeed[i].TileOutline.getPosition().x;
-			ButtonPosY=PropertyDeed[i].TileOutline.getPosition().y;
-
-			if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Property[i].Type<3)
-			{
-				ButtonClicked=i+200;
-				printf("Button %d Pressed\n",i+200);
 			}
 		}
-	}
 
-	if(ButtonClicked==9)
-		printf("Submit Trade was clicked\n");
+		if(ActiveFrame==2)
+		{
+			//Add support for clickable property deeds
+			for(i=0;i<40;i++)
+			{
+				ButtonWidth=PropertyDeed[i].TileOutline.getSize().x;
+				ButtonHeight=PropertyDeed[i].TileOutline.getSize().y;
+				ButtonPosX=PropertyDeed[i].TileOutline.getPosition().x;
+				ButtonPosY=PropertyDeed[i].TileOutline.getPosition().y;
+
+				if((MouseX>ButtonPosX&&MouseX<ButtonPosX+ButtonWidth)&&(MouseY>ButtonPosY&&MouseY<ButtonPosY+ButtonHeight)&&Property[i].Type<3)
+				{
+					ButtonClicked=i+200;
+					printf("Button %d Pressed\n",i+200);
+				}
+			}
+		}
+
+		if(ButtonClicked==9)
+			printf("Submit Trade was clicked\n");
+	}
 
 	return ButtonClicked;
 }
@@ -2114,10 +2173,6 @@ void PlayerActionHandler(int ButtonClicked)
 	//is NoticeBoard Action and in what state, buy, rent, rr, util, tax, ( chance, chest different notice board, still under same tent)
 		//get number range from PropertyHandler Function, WIP
 
-	//button pressed (0 - 29)
-	int i=0;
-	int DiceTotalHold=0;
-	int ActiveProperty=Player[ActivePlayer].Pos;
 	switch(ActiveFrame)
 	{
 	case 0:
@@ -2126,114 +2181,15 @@ void PlayerActionHandler(int ButtonClicked)
 		break;
 	case 1:
 		//Build
-		switch(ButtonClicked)
-		{
-		case 1:
-			ActiveFrame=0;
-			break;
-		case 5:
-			//Return to Trade Menu
-			for(i=10;i<14;i++)
-			{
-				Button[i].isVisible=1;
-			}
-			TargetPlayer=5;
-			CashOfferMode=0;
-			ActiveFrame=2;
-			break;
-		case 32 ... 109:
-			if(ButtonClicked%2==1)
-			{
-				//remove house
-				ActiveProperty=(ButtonClicked-31)/2;
-				if(Property[ActiveProperty].HouseCount!=0)
-				{
-					Property[ActiveProperty].HouseCount--;
-					Player[ActivePlayer].Money+=Property[ActiveProperty].HouseCost;
-					HouseBuildBalancer(ActiveProperty);
-				}
-			}
-			else
-			{
-				//add house
-				ActiveProperty=(ButtonClicked-30)/2;
-				if(Property[ActiveProperty].HouseCount!=5&&Player[ActivePlayer].Money>Property[ActiveProperty].HouseCost)
-				{
-					Property[ActiveProperty].HouseCount++;
-					Player[ActivePlayer].Money-=Property[ActiveProperty].HouseCost;
-					HouseBuildBalancer(ActiveProperty);
-				}
-			}
-		break;
-		}
+		BuildAction(ButtonClicked);
 		break;
 	case 2:
 		//Trade
-		switch(ButtonClicked)
-		{
-		case 1:
-			//Return to Main Board
-			Offer.player_GetFunds=0;
-			Offer.target_GetFunds=0;
-			ActiveFrame=0;
-		break;
-
-		case 9:
-			//Player is done with building trade, send offer to AI
-			printf("Trade Offer Submitted\n");
-			PropertyExchange(AI_Trade());
-			ActiveFrame=0;
-
-			for(i=10;i<14;i++)
-			{
-				Button[i].isVisible=0;
-			}
-
-			for(i=0;i<10;i++)
-			{
-				Button[i].isVisible=1;
-			}
-		break;
-
-		case 3:
-			//Return to Build Menu
-			Offer.player_GetFunds=0;
-			Offer.target_GetFunds=0;
-			CheckMonopolyStatus();
-			ActiveFrame=1;
-		break;
-
-		case 200 ... 239:
-			//handles building trade offer
-			TradeOfferBuilder(ButtonClicked);
-		break;
-
-		case 28:
-			//Player Give Cash
-			if(CashOfferMode==2)
-				CashOfferMode=0;
-			else
-				CashOfferMode=2;
-		break;
-
-		case 29:
-			//Player Get Cash
-			if(CashOfferMode==1)
-				CashOfferMode=0;
-			else
-				CashOfferMode=1;
-		break;
-
-		}
+		TradeAction(ButtonClicked);
 		break;
 	case 3:
 		//Mortgage
-		switch(ButtonClicked)
-		{
-		case 1:
-			ActiveFrame=0;
-			break;
-		}
+		MortgageAction(ButtonClicked);
 		break;
 	default:
 		printf("ActiveFrame Out of Range: (%d)\n",ActiveFrame);//error check
@@ -2347,6 +2303,10 @@ void PropertyHandler(void)
 	//get property type
 	//0-Normal,1-Util,2-RR,3-taxes,4-chest,5-chance,6-go,7-jail/visting,8-parking,9-goto jail
 
+	/****BUG TRACKING****/
+	//bug somewhere chest/chance/noticeboard are wring colors/sizes
+	//accept/decline buttons showing when shouldn't
+
 	int ActiveProperty=Player[ActivePlayer].Pos;
 	NoticeBoard.isVisible=0;
 	Button[14].isVisible=0;
@@ -2433,8 +2393,9 @@ void PropertyHandler(void)
 	case 9:
 	//GO TO JAIL
 		Player[ActivePlayer].inJail=1;
-		Player[ActivePlayer].inJail=0;		//Temp since Jail is not workin yet
+		//Player[ActivePlayer].inJail=0;		//Temp since Jail is not workin yet
 		Player[ActivePlayer].Pos=10;
+
 		NoticeBoardState=0;
 		break;
 	default:
@@ -2505,15 +2466,7 @@ int AI_TURN(void)
 
 	//button numbers;	 14: Accept	| 15: Decline
 
-
 	//AI rolls dice, buys property, pays rent
-
-
-	//Bug tracking:
-	/*	when AI lands on Taxes, render frezzes
-	 *  when AI lands on Chest/chance, render frezzes, maybe
-	 *  	When AI lands on anything but normal property/corners render locks up, game keeps running
-	 */
 
 	int ActiveProperty=Player[ActivePlayer].Pos;
 	int isOwned=Property[ActiveProperty].Owner;
@@ -2965,13 +2918,6 @@ int AI_Trade(void)
 	//	More Advance AI Dev Below, look at monoply completness status
 
 
-
-
-
-
-
-
-
 	return Accept;
 }
 
@@ -3125,6 +3071,9 @@ void MainBoardAction(int ButtonClicked)
 			if(Player[ActivePlayer].hasRolled==1)
 			{
 				Player[ActivePlayer].hasRolled=0;
+				Player[ActivePlayer].DB_roll=0;
+				if(Player[ActivePlayer].DB_count!=3)
+					Player[ActivePlayer].DB_count=0;
 				ActivePlayer++;
 				if(ActivePlayer>3)
 					ActivePlayer=0;
@@ -3168,21 +3117,37 @@ void MainBoardAction(int ButtonClicked)
 			break;
 		case 8:
 			//Roll Dice
+				//Dice Roll Rebuild, with Jail / Double Rolls / Normal Action
 			if(Player[ActivePlayer].hasRolled==0)
 			{
-				if(Player[ActivePlayer].inJail==1)
+				if(Player[ActivePlayer].DB_count<3||Player[ActivePlayer].inJail==0)
 				{
+					//PlayerMovement(RollDice());
+					SetPlayerPosition(RollDice());
+					if(Player[ActivePlayer].DB_roll==0)
+					{
+						Player[ActivePlayer].hasRolled=1;
+						Player[ActivePlayer].DB_count=0;
+					}
+					else
+					{
+						Player[ActivePlayer].hasRolled=0;
+						Player[ActivePlayer].DB_count++;
+					}
+				}
+				else
+				{
+					//JAIL, rolled 3 doubles or got sent to JAIL
 					DiceTotalHold=RollDice();
 					if(Player[ActivePlayer].DB_roll==1)
 					{
+						//Player has rolled Double, free to leave
 						Player[ActivePlayer].inJail=0;
+						Player[ActivePlayer].DB_count=0;
+						Player[ActivePlayer].DB_roll=0;
+						SetPlayerPosition(DiceTotalHold);
 					}
-
 				}
-				else
-					PlayerTravelAnimate(RollDice());
-
-				Player[ActivePlayer].hasRolled=1;
 			}
 			break;
 		default:
@@ -3264,10 +3229,15 @@ void MainBoardAction(int ButtonClicked)
 			if(error==1)
 			{
 				ChestPT++;
+				if(ChestPT>15)
+					ChestPT=0;
 				error=CardAction(CommunityChest[ChestSeq[ChestPT]].Parm);
 			}
 
 		}
+		ChestPT++;
+		if(ChestPT>15)
+			ChestPT=0;
 
 		break;
 	case 6:
@@ -3281,10 +3251,15 @@ void MainBoardAction(int ButtonClicked)
 			if(error==1)
 			{
 				ChancePT++;
+				if(ChancePT>15)
+					ChancePT=0;
 				error=CardAction(Chance[ChanceSeq[ChancePT]].Parm);
 			}
 
 		}
+		ChancePT++;
+		if(ChancePT>15)
+			ChancePT=0;
 		break;
 	case 7:
 		//GO, no action neeeded
@@ -3306,39 +3281,135 @@ void MainBoardAction(int ButtonClicked)
 
 void BuildAction(int ButtonClicked)
 {
+	int i=0;
+	int ActiveProperty=Player[ActivePlayer].Pos;
 
+	switch(ButtonClicked)
+	{
+	case 1:
+		ActiveFrame=0;
+		break;
+	case 5:
+		//Return to Trade Menu
+		for(i=10;i<14;i++)
+		{
+			Button[i].isVisible=1;
+		}
+		TargetPlayer=5;
+		CashOfferMode=0;
+		ActiveFrame=2;
+		break;
+	case 32 ... 109:
+		if(ButtonClicked%2==1)
+		{
+			//remove house
+			ActiveProperty=(ButtonClicked-31)/2;
+			if(Property[ActiveProperty].HouseCount!=0)
+			{
+				Property[ActiveProperty].HouseCount--;
+				Player[ActivePlayer].Money+=Property[ActiveProperty].HouseCost;
+				HouseBuildBalancer(ActiveProperty);
+			}
+		}
+		else
+		{
+			//add house
+			ActiveProperty=(ButtonClicked-30)/2;
+			if(Property[ActiveProperty].HouseCount!=5&&Player[ActivePlayer].Money>Property[ActiveProperty].HouseCost)
+			{
+				Property[ActiveProperty].HouseCount++;
+				Player[ActivePlayer].Money-=Property[ActiveProperty].HouseCost;
+				HouseBuildBalancer(ActiveProperty);
+			}
+		}
+	break;
+	}
 }
 
 void TradeAction(int ButtonClicked)
 {
+	int i=0;
 
+	switch(ButtonClicked)
+	{
+	case 1:
+		//Return to Main Board
+		Offer.player_GetFunds=0;
+		Offer.target_GetFunds=0;
+		ActiveFrame=0;
+	break;
+
+	case 9:
+		//Player is done with building trade, send offer to AI
+		printf("Trade Offer Submitted\n");
+		PropertyExchange(AI_Trade());
+		ActiveFrame=0;
+
+		for(i=10;i<14;i++)
+		{
+			Button[i].isVisible=0;
+		}
+
+		for(i=0;i<10;i++)
+		{
+			Button[i].isVisible=1;
+		}
+	break;
+
+	case 3:
+		//Return to Build Menu
+		Offer.player_GetFunds=0;
+		Offer.target_GetFunds=0;
+		CheckMonopolyStatus();
+		ActiveFrame=1;
+	break;
+
+	case 200 ... 239:
+		//handles building trade offer
+		TradeOfferBuilder(ButtonClicked);
+	break;
+
+	case 28:
+		//Player Give Cash
+		if(CashOfferMode==2)
+			CashOfferMode=0;
+		else
+			CashOfferMode=2;
+	break;
+
+	case 29:
+		//Player Get Cash
+		if(CashOfferMode==1)
+			CashOfferMode=0;
+		else
+			CashOfferMode=1;
+	break;
+
+	}
 }
 
 void MortgageAction(int ButtonClicked)
 {
-
+	switch(ButtonClicked)
+	{
+	case 1:
+		ActiveFrame=0;
+		break;
+	}
 }
 
 void ChanceFunc(void)
 {
 	NoticeBoard.ElementShape.setFillColor(sf::Color(255,161,0));
-	NoticeBoard.ElementShape.setSize(sf::Vector2f(300,200));
+	NoticeBoard.ElementShape.setSize(sf::Vector2f(350,200));
 	NoticeBoard.ElementText.setString(Chance[ChanceSeq[ChancePT]].Text);
-
-	ChancePT++;
-	if(ChancePT>15)
-		ChancePT=0;
 }
 
 void ChestFunc(void)
 {
 	NoticeBoard.ElementShape.setFillColor(sf::Color::Cyan);
-	NoticeBoard.ElementShape.setSize(sf::Vector2f(300,200));
+	NoticeBoard.ElementShape.setSize(sf::Vector2f(350,200));
 	NoticeBoard.ElementText.setString(CommunityChest[ChestSeq[ChestPT]].Text);
-
-	ChestPT++;
-	if(ChestPT>15)
-		ChestPT=0;
 }
 
 int CardAction(int Parm[4])
@@ -3386,6 +3457,10 @@ int CardAction(int Parm[4])
 			if(Player[ActivePlayer].Pos>39)
 				Player[ActivePlayer].Pos-=39;
 		}
+		SetPlayerPosition(0);
+		PlayerMovement();
+		NoticeBoard.ElementShape.setSize(sf::Vector2f(200,200));
+		NoticeBoard.ElementShape.setFillColor(sf::Color::White);
 		PropertyHandler();
 		break;
 	case 1:
@@ -3432,6 +3507,7 @@ int CardAction(int Parm[4])
 		break;
 	case 7:
 		//GTJ, come back to later
+		Player[ActivePlayer].inJail=1;
 		break;
 	default:
 		printf("Chest / Chance Action Type Lookup Failed\n");
@@ -3440,4 +3516,74 @@ int CardAction(int Parm[4])
 
 	return 0;
 }
+
+void SetPlayerPosition(int DiceTotal)
+{
+	//So what of a rebuild of PlayerTavelAnimate
+	//feed in how many space to move, property 14 -> 20 (Rolled toal of 6)
+	//calculate new position for ALL players, may need to move players when 2/3/4 players are at same property
+	int i=0;
+	int j=0;
+	int playerCount=0;
+	int PropRotate=0;
+
+	//int CornerX[16]={};
+	//int CornerY[16]={};
+
+
+	Player[ActivePlayer].Pos+=DiceTotal;
+	if(Player[ActivePlayer].Pos>39)
+	{
+		Player[ActivePlayer].Pos=0;
+		Player[ActivePlayer].Money+=200;
+	}
+
+
+	printf("Player %d , Pos: %d\n",ActivePlayer,Player[ActivePlayer].Pos);
+
+	Player[ActivePlayer].PosX=Property[Player[ActivePlayer].Pos].TileOutline.getPosition().x;
+	Player[ActivePlayer].PosY=Property[Player[ActivePlayer].Pos].TileOutline.getPosition().y;
+
+	PlayerMovement();
+
+/*	for(i=0;i<40;i++)
+	{
+		playerCount=0;
+
+		for(j=0;j<4;j++)
+		{
+			if(Player[j].Pos==i)
+				playerCount++;
+		}
+
+		PropRotate=Property[i].TileOutline.getRotation();
+
+		if(i%10==0)
+		{
+			//corners are special
+
+		}
+		else
+		{
+			switch(PropRotate)
+			{
+			case 0:
+
+				break;
+			case 90:
+
+				break;
+			case 180:
+
+				break;
+			case 270:
+
+				break;
+			}
+		}
+	}*/
+
+
+}
+
 

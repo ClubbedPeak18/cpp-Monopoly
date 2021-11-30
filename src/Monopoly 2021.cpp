@@ -108,11 +108,18 @@ void SetPlayerPosition(int);		//IN:Global vars, player pos / Jail / DB State
 
 
 //Offset Data for drawing Players on GameBoard
-int POSXOffset[4]={10,10,35,35};	//10,10,35,35	normal(0-3) , corner(4-7)
-int POSYOffset[4]={55,80,55,80};	//10,35,10,35
+//int POSXOffset[4]={10,10,35,35};	//10,10,35,35	normal(0-3) , corner(4-7)
+//int POSYOffset[4]={55,80,55,80};	//10,35,10,35
 
-int POSXOffsetCorner[16]={75,75,50,25,05,05,32,56,06,06,32,56,75,75,50,25};	//Corner offsets, 0-3,4-7,8-11,12-15
-int POSYOffsetCorner[16]={25,50,75,75,25,50,75,75,56,31,06,06,56,31,05,05};
+//int POSXOffsetCorner[16]={75,75,50,25,05,05,32,56,06,06,32,56,75,75,50,25};	//Corner offsets, 0-3,4-7,8-11,12-15
+//int POSYOffsetCorner[16]={25,50,75,75,25,50,75,75,56,31,06,06,56,31,05,05};
+
+int MovementX[12]={10,35,10,35,60,80,30,80,5,35,5,35};
+int MovementY[12]={25,25,55,55,80,60,80,30,5,5,35,35};
+
+int GameLoad=0;
+
+
 
 struct BoardTile
 {
@@ -173,6 +180,8 @@ struct Agents
 
 	int VelX;
 	int VelY;
+
+	int Rot;
 
 	sf::RectangleShape AgentSprite;
 	sf::Texture AgentTexture;
@@ -385,7 +394,7 @@ int main() {
 
 				case Event::MouseButtonPressed:
 					PlayerActionHandler(ButtonHandler());
-					printf("AP %d AF %d NBS %d PAS %d PHS %d\n",ActivePlayer,ActiveFrame,NoticeBoardState,PlayerActionState,PropertyHandlerState);
+					printf("AP:%d AF:%d NBS:%d DB:%d Jail:%d\n",ActivePlayer,ActiveFrame,NoticeBoardState,Player[ActivePlayer].DB_count,Player[ActivePlayer].inJail);
 
 					break;
 
@@ -475,6 +484,7 @@ int main() {
 		}
 
 		//render game board / everything
+
 		switch(ActiveFrame)
 		{
 		case 0:
@@ -482,6 +492,16 @@ int main() {
 			{
 				if(i%2==0)
 					Button[i].isVisible=1;
+				if(Player[ActivePlayer].hasRolled==1)
+				{
+					Button[8].isVisible=0;
+					Button[0].isVisible=1;
+				}
+				else
+				{
+					Button[8].isVisible=1;
+					Button[0].isVisible=0;
+				}
 			}
 			DrawGameBoard();
 			break;
@@ -504,6 +524,8 @@ int main() {
 		default:
 			break;
 		}
+
+
 
 	}
 
@@ -1187,7 +1209,8 @@ void StartUpGameBoard(void)
 	Button[28].ElementText.setString("Give\nCash Offer");
 	Button[29].ElementText.setString("Get\nCash Offer");
 
-
+	Button[0].isVisible=0;
+	Button[8].isVisible=1;
 
 }
 
@@ -1640,8 +1663,11 @@ void DrawGameBoard(void)
 	//Draw menu option buttons
 	for(i=0;i<9;i++)
 	{
-		window.draw(Button[i].ElementShape);
-		window.draw(Button[i].ElementText);
+		if(Button[i].isVisible==1)
+		{
+			window.draw(Button[i].ElementShape);
+			window.draw(Button[i].ElementText);
+		}
 	}
 
 	//Draw Community Chest/Change card spaceHolder
@@ -1659,7 +1685,7 @@ void DrawGameBoard(void)
 	}
 
 
-	if(NoticeBoard.isVisible==1)
+	if(NoticeBoard.isVisible==1&&NoticeBoardState!=0)
 	{
 		window.draw(NoticeBoard.ElementShape);
 		window.draw(NoticeBoard.ElementText);
@@ -1751,7 +1777,7 @@ void DrawBuildBoard(void)
 
 
 	window.display();
-	window.setFramerateLimit(30);
+	window.setFramerateLimit(60);
 }
 
 void DrawTradeBoard(void)
@@ -1928,17 +1954,18 @@ void StartUpPlayer(void)
 	Player[2].AgentTexture.loadFromFile("bits/sprits/P3.png");
 	Player[3].AgentTexture.loadFromFile("bits/sprits/P4.png");
 
-	int StartX=Property[0].TileOutline.getPosition().x;
-	int StartY=Property[0].TileOutline.getPosition().y
-			+Property[0].TileOutline.getSize().y-20;
+	//int StartX=Property[0].TileOutline.getPosition().x;
+	//int StartY=Property[0].TileOutline.getPosition().y
+	//		+Property[0].TileOutline.getSize().y-20;
 
 	for(i=0;i<4;i++)
 	{
 		Player[i].AgentSprite.setTexture(&Player[i].AgentTexture);
-		Player[i].AgentSprite.setPosition(POSXOffset[i],POSYOffset[i]);
+		Player[i].AgentSprite.setPosition(0,0);
 		Player[i].AgentSprite.setSize(sf::Vector2f(20,20));
 		Player[i].Money=1500;
 		Player[i].Pos=0;
+		Player[i].Rot=0;
 		Player[i].inJail=0;
 		Player[i].isBankrupt=0;
 		Player[i].DB_roll=0;
@@ -1948,12 +1975,12 @@ void StartUpPlayer(void)
 		Player[i].GetOutJail[1]=0;	//chance GetOut
 	}
 
-	StartX=Property[0].TileOutline.getPosition().y+Property[0].TileOutline.getSize().y-Player[0].AgentSprite.getSize().y*2;
-	StartY=Property[0].TileOutline.getPosition().x+Property[0].TileOutline.getSize().x-Player[0].AgentSprite.getSize().x*2;
+	//StartX=Property[0].TileOutline.getPosition().y+Property[0].TileOutline.getSize().y-Player[0].AgentSprite.getSize().y*2;
+	//StartY=Property[0].TileOutline.getPosition().x+Property[0].TileOutline.getSize().x-Player[0].AgentSprite.getSize().x*2;
 
 	for(i=0;i<4;i++)
 	{
-		Player[i].AgentSprite.setPosition(StartX-POSXOffset[i],StartY-POSYOffset[i]);
+		Player[i].AgentSprite.setPosition(Property[0].TileOutline.getPosition().x+MovementX[i+4],Property[0].TileOutline.getPosition().y+MovementY[i+4]);
 	}
 
 	FILE *fp;
@@ -1999,6 +2026,20 @@ void PlayerMovement(void)
 				Player[ActivePlayer].AgentSprite.move(sf::Vector2f(0,9));
 		}
 		//sf::sleep(sf::milliseconds(500));		//wait 1 sec
+
+		if(Player[ActivePlayer].AgentSprite.getRotation()<Player[ActivePlayer].Rot)
+			Player[ActivePlayer].AgentSprite.rotate(10);
+		if(Player[ActivePlayer].AgentSprite.getRotation()>Player[ActivePlayer].Rot)
+		{
+			if(Player[ActivePlayer].Rot==0&&Player[ActivePlayer].AgentSprite.getRotation()>180)
+			{
+				Player[ActivePlayer].AgentSprite.rotate(10);
+			}
+			else
+				Player[ActivePlayer].AgentSprite.rotate(-10);
+		}
+
+
 		DrawGameBoard();
 	}
 	MovementActive=0;
@@ -2018,9 +2059,8 @@ void PlayerMovement(void)
 		DrawGameBoard();
 	}
 	*/
-
-
-	PropertyHandler();
+	if(GameLoad==0)
+		PropertyHandler();
 
 }
 
@@ -2097,6 +2137,16 @@ void LoadGame(void)
 	}
 
 	printf("Game Loaded");
+
+	GameLoad=1;
+	for(i=0;i<4;i++)
+	{
+		ActivePlayer=i;
+		SetPlayerPosition(0);
+		PlayerMovement();
+
+	}
+	GameLoad=0;
 	//StartUpPropertySpec();
 }
 
@@ -2306,6 +2356,9 @@ void PropertyHandler(void)
 	/****BUG TRACKING****/
 	//bug somewhere chest/chance/noticeboard are wring colors/sizes
 	//accept/decline buttons showing when shouldn't
+	//St.Charles Place is bug, NoticeBoard does not update property from Chance/Chest to Pay Rent/Buy
+		//Travel to Property Works, not NoticeBoard, shows the last message that NoticeBoard was set to
+		//Left over data from Chest/Chance updated NB color, not state/message
 
 	int ActiveProperty=Player[ActivePlayer].Pos;
 	NoticeBoard.isVisible=0;
@@ -2318,6 +2371,7 @@ void PropertyHandler(void)
 	case 0 ... 2:
 	//Property Normal, Utility, RailRoad
 		NoticeBoard.isVisible=1;
+		NoticeBoard.ElementShape.setFillColor(sf::Color::White);
 		//Enable/set bits for NoticeBoardStatus Rendering
 		if(Property[ActiveProperty].Owner<0)
 		{
@@ -2350,10 +2404,15 @@ void PropertyHandler(void)
 		{
 			//Property IS Owned, add check for bankrupt, builder menu / mortgage menu / remove player
 			if(Property[ActiveProperty].Owner==ActivePlayer)
+			{
 				NoticeBoardState=0;
+				NoticeBoard.isVisible=0;
+			}
 			else
+			{
 				NoticeBoard.ElementText.setString("Pay Rent");
-			Button[14].isVisible=1;
+				Button[14].isVisible=1;
+			}
 		}
 		break;
 	case 3:
@@ -3077,6 +3136,9 @@ void MainBoardAction(int ButtonClicked)
 				ActivePlayer++;
 				if(ActivePlayer>3)
 					ActivePlayer=0;
+
+				Button[0].isVisible=0;
+				Button[8].isVisible=1;
 			}
 
 			break;
@@ -3128,6 +3190,9 @@ void MainBoardAction(int ButtonClicked)
 					{
 						Player[ActivePlayer].hasRolled=1;
 						Player[ActivePlayer].DB_count=0;
+
+						Button[0].isVisible=1;
+						Button[8].isVisible=0;
 					}
 					else
 					{
@@ -3461,6 +3526,8 @@ int CardAction(int Parm[4])
 		PlayerMovement();
 		NoticeBoard.ElementShape.setSize(sf::Vector2f(200,200));
 		NoticeBoard.ElementShape.setFillColor(sf::Color::White);
+		NoticeBoardState=0;
+		NoticeBoard.isVisible=0;
 		PropertyHandler();
 		break;
 	case 1:
@@ -3526,7 +3593,7 @@ void SetPlayerPosition(int DiceTotal)
 	int j=0;
 	int playerCount=0;
 	int PropRotate=0;
-
+	int OffOffSet=0;
 	//int CornerX[16]={};
 	//int CornerY[16]={};
 
@@ -3538,11 +3605,53 @@ void SetPlayerPosition(int DiceTotal)
 		Player[ActivePlayer].Money+=200;
 	}
 
+	Player[ActivePlayer].Rot=Property[Player[ActivePlayer].Pos].TileOutline.getRotation();
 
 	printf("Player %d , Pos: %d\n",ActivePlayer,Player[ActivePlayer].Pos);
 
 	Player[ActivePlayer].PosX=Property[Player[ActivePlayer].Pos].TileOutline.getPosition().x;
 	Player[ActivePlayer].PosY=Property[Player[ActivePlayer].Pos].TileOutline.getPosition().y;
+
+	PropRotate=Property[Player[ActivePlayer].Pos].TileOutline.getRotation();
+
+	for(i=0;i<4;i++)
+	{
+		if(Player[i].Pos==Player[ActivePlayer].Pos)
+			playerCount++;
+	}
+	playerCount--;
+
+	if(Player[ActivePlayer].Pos%10==0)
+		OffOffSet=4;
+
+	if(Player[ActivePlayer].inJail==1)
+		OffOffSet=8;
+
+	if(GameLoad==1)
+	{
+		OffOffSet-=ActivePlayer;
+	}
+
+	switch(PropRotate)
+	{
+	case 0:
+		Player[ActivePlayer].PosX+=MovementX[playerCount+OffOffSet];
+		Player[ActivePlayer].PosY+=MovementY[playerCount+OffOffSet];
+		break;
+	case 90:
+		Player[ActivePlayer].PosY+=MovementX[playerCount+OffOffSet];
+		Player[ActivePlayer].PosX-=MovementY[playerCount+OffOffSet];
+		break;
+	case 180:
+		Player[ActivePlayer].PosX-=MovementX[playerCount+OffOffSet];
+		Player[ActivePlayer].PosY-=MovementY[playerCount+OffOffSet];
+		break;
+	case 270:
+		Player[ActivePlayer].PosY-=MovementX[playerCount+OffOffSet];
+		Player[ActivePlayer].PosX+=MovementY[playerCount+OffOffSet];
+		break;
+	}
+
 
 	PlayerMovement();
 

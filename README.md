@@ -1,9 +1,9 @@
 # cpp-Monopoly
 
 
-=======================
+
 SetUp Dev enviroment
-=======================
+
 
 Eclipse (any version >= MARS)
 MinGW (included in repo)

@@ -61,19 +61,19 @@ int AI_TURN(void);					//IN:Global Variables
 void SaveGame(void);				//Save Game to TXT File
 void LoadGame(void);				//Load Game from TXT File
 
-void CheckMonopolyStatus();			//IN:Global ActivePlayer
+void CheckMonopolyStatus(int);		//IN:Player being evaluated
 									//OUT:ActivePlayer MonopoliesOwned
 
 void HouseBuildBalancer(int);		//IN:Property Player is wanting to build on (ActiveProperty)
 									//OUT:Draw calls and updated house count / player funds / keep house count with +/- 1
 
 char* IntToString(int,int);			//Convert Number data to String Data
-char StringBuffer[10];				//cheap woke around for local buffer within function, produces garbage text without
+char StringBuffer[20];				//cheap woke around for local buffer within function, produces garbage text without
 
 void PropertyExchange(int);			//IN:AI Response, Offer is Global, but is feed into function
 									//OUT: Update property and money values
 
-int AI_Trade(void);					//IN:Offer Struct (Global var)
+int AI_Trade(void);					//IN:Offer Struct (Global var)	//AI trade evaluation, same for all AI players so far
 									//OUT:Yes/No to trade offer
 
 void BoardEvaluation(int,int);		//IN:Deal Maker, Deal Target Player ID
@@ -107,6 +107,15 @@ void SetPlayerPosition(int);		//IN:Global vars, player pos / Jail / DB State
 									//OUT:SFML Draw calls
 
 
+
+void AI_MakeTrade(void);			//AI will create trade offers, build, future proof to add in mortgage property
+
+void AI_MakeBuild(void);
+
+void AI_MakeMortgage(void);
+
+
+
 //Offset Data for drawing Players on GameBoard
 //int POSXOffset[4]={10,10,35,35};	//10,10,35,35	normal(0-3) , corner(4-7)
 //int POSYOffset[4]={55,80,55,80};	//10,35,10,35
@@ -116,10 +125,6 @@ void SetPlayerPosition(int);		//IN:Global vars, player pos / Jail / DB State
 
 int MovementX[12]={10,35,10,35,60,80,30,80,5,35,5,35};
 int MovementY[12]={25,25,55,55,80,60,80,30,5,5,35,35};
-
-int GameLoad=0;
-
-
 
 struct BoardTile
 {
@@ -171,7 +176,7 @@ struct Agents
 	int isBankrupt;
 	int hasRolled;
 	int hasAI;
-	int MonopoliesOwned[8]={0};	//dirty trick to track Completed Monopolies, sub 1 to get to LookUpTable array index
+	float MonopoliesOwned[8]={0};	//dirty trick to track Completed Monopolies, sub 1 to get to LookUpTable array index
 
 	int GetOutJail[2];	//0,1,2 since both chance/chest have one, may have more since chest/chance can be modify
 
@@ -183,6 +188,9 @@ struct Agents
 
 	int Rot;
 
+	int BuildDesireBlock[8]={0};		//Property Block Build desire list
+	int TradeDesireBlock[8]={0};		//Property BLock Trade desire list
+
 	sf::RectangleShape AgentSprite;
 	sf::Texture AgentTexture;
 	sf::Font AgentFont;
@@ -191,7 +199,7 @@ struct Agents
 
 struct Element
 {
-	char ElementString[10];
+	char ElementString[20];
 	sf::Font ElementFont;
 	sf::Text ElementText;
 	sf::RectangleShape ElementShape;
@@ -239,13 +247,13 @@ struct GameCard
 	sf::Texture CardTexture;
 };
 
-
 /* Frames (Menus):
  *
  * Main Game Board
  * Trading
  * Building
  * (un)Mortgage
+ * get Trade Offer
  */
 
 BoardTile Property[40];
@@ -268,12 +276,15 @@ int Aceleration=1;
 int MovementActive=0;
 
 const int ButtonCount=110;	//Sets how many buttons, goes across many functions
+const int TextBoxCount=20;	//TextBox count
 Element Button[ButtonCount];	//BuToNS to click on
 
 Element Line[2];		//Draw a line, used for trading menu
 Element Dice[2];		//game dice
 Element PlayerCount;	//displaces current ActivePlayer
 Element Debugger[10];	//debug printout in game window for testing
+Element TextBox[TextBoxCount];	//replace old debugger
+
 Element Funds[4];		//displace player funds
 Element Cards[2];		//chest / chance cards
 Element NoticeBoard;	//use for main game board interactions
@@ -322,6 +333,14 @@ GameCard Chance[16];
  *
  *	for trading menu, will draw property tiles / trading cards
  *
+ *===========================
+ * TextBox Use
+ * 0: ActivePlayer, MainBoard
+ * 1: Player_GetFunds, Trade
+ * 2: Target_GetFunds, Trade
+ * 3: Target Current Funds, Trade
+ * 4: Player Current Funds, Trade
+ *
  *
  *
  */
@@ -342,8 +361,9 @@ int PlayerActionState=0;	//State of player action, might not need global, but as
 int PropertyHandlerState=0;	//Current Property landed on, could be made part of player struct
 							//combine ButtonClickState with ActivePlayer to track player button selection
 int MonopolyBlockLookUp[8][3]={0};	//Cheat, quick lookup for monopoly block properties max of 3 properties per monopoly block
+int PropertyPerBlock[8]={0};		//Stop having to figure out how many properties are in block
 int DiceRollCount=0;		//AI will cheat and know the entire RND number sequence, this is the pointer on that list
-
+int GameLoad=0;
 
 int main() {
 	int i=0;
@@ -378,7 +398,7 @@ int main() {
 	int RNDTick=0;
 	while(window.isOpen())
 	{
-		Debugger[0].ElementText.setString(IntToString(ActivePlayer+1,2));
+		TextBox[0].ElementText.setString(IntToString(ActivePlayer+1,3));	//was setting 2, now 3
 		sf::Event event;
 		if(Player[ActivePlayer].hasAI==0)
 		{
@@ -431,6 +451,10 @@ int main() {
 						{
 							Offer.player_GetFunds*=10;
 							Offer.player_GetFunds+=i;
+							if(Offer.player_GetFunds>Player[TargetPlayer].Money)
+							{
+								Offer.player_GetFunds/=10;
+							}
 						}
 						break;
 					case 2:
@@ -443,6 +467,10 @@ int main() {
 						{
 							Offer.target_GetFunds*=10;
 							Offer.target_GetFunds+=i;
+							if(Offer.target_GetFunds>Player[ActivePlayer].Money)
+							{
+								Offer.target_GetFunds/=10;
+							}
 						}
 						break;
 					default:
@@ -488,6 +516,7 @@ int main() {
 		switch(ActiveFrame)
 		{
 		case 0:
+			//Game Board (Main)
 			for(i=0;i<9;i++)
 			{
 				if(i%2==0)
@@ -506,6 +535,7 @@ int main() {
 			DrawGameBoard();
 			break;
 		case 1:
+			//Build
 			for(i=0;i<9;i++)
 			{
 				if(i%2==0)
@@ -514,12 +544,19 @@ int main() {
 			DrawBuildBoard();
 			break;
 		case 2:
+			//Trade
 			for(i=0;i<9;i++)
 			{
 				if(i%2==0)
 					Button[i].isVisible=0;
 			}
 			DrawTradeBoard();
+			break;
+		case 3:
+			//Mortgage
+			break;
+		case 4:
+			//Receive Trade Offer
 			break;
 		default:
 			break;
@@ -711,6 +748,7 @@ void StartUpPropertyData(void)
 			{
 				//no change keep adding to current block
 				MonopolyBlockLookUp[MonopolyIndexY][MonopolyIndexX]=i;
+				PropertyPerBlock[MonopolyIndexY]=MonopolyIndexX;
 				MonopolyIndexX++;
 			}
 			else
@@ -740,6 +778,11 @@ void StartUpPropertyData(void)
 		printf("\n");
 	}
 
+	for(i=0;i<8;i++)
+	{
+		printf("Property in Block %d is %d\n",i+1,PropertyPerBlock[i]+1);
+	}
+
 	//system("PAUSE");
 
 
@@ -749,7 +792,6 @@ void StartUpPropertySpec(void)
 {
 	int i=0;
 	int j=0;
-
 
 	int PropX=65;	//normal 210x210 & 210x130	total 1600x1600 px		65
 	int PropY=105;	//scale down 1/2 to 800x800 px						105
@@ -1088,13 +1130,13 @@ void StartUpGameBoard(void)
 	Button[15].ElementText.setPosition(Button[15].ElementShape.getPosition().x,Button[15].ElementShape.getPosition().y);
 	NoticeBoard.ElementText.setPosition(NoticeBoard.ElementShape.getPosition().x,NoticeBoard.ElementShape.getPosition().y);
 
-	//setup for Debug / UI Elemenents (active player, AP funds, AP get cash, TP funds, TP get cash)
-	for(i=0;i<10;i++)
+	//setup for TextBox Elements (active player, AP funds, AP get cash, TP funds, TP get cash)
+	for(i=0;i<TextBoxCount;i++)
 	{
-		Debugger[i].ElementText.setPosition(1000,100);
-		Debugger[i].ElementText.setCharacterSize(20);
-		Debugger[i].ElementText.setColor(sf::Color::Black);
-		Debugger[i].ElementText.setFont(Calibri);
+		TextBox[i].ElementText.setPosition(1000,100);
+		TextBox[i].ElementText.setCharacterSize(20);
+		TextBox[i].ElementText.setColor(sf::Color::Black);
+		TextBox[i].ElementText.setFont(Calibri);
 	}
 	//Might move to new function StartUpBuildBoard---------------------------------------------------------------
 
@@ -1546,88 +1588,6 @@ void DrawGameBoard(void)
 
 	}
 
-/*
-	for(i=0;i<4;i++)
-	{
-		//draw players
-		PropRotate=Property[Player[i].Pos].TileOutline.getRotation();
-		switch(PropRotate)
-		{
-		case 90:
-			if(Player[i].Pos==10)
-			{
-				//Jail/Just Visting
-				if(Player[i].inJail==1)
-				{
-					//use position of normal property but with different x/y offsets
-					Player[i].AgentSprite.setPosition(
-						Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffset[i+1]+50,
-						Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffset[i+1]+50);
-				}
-				else
-				{
-					Player[i].AgentSprite.setPosition(
-						Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffsetCorner[i+4]-100,
-						Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffsetCorner[i+4]);
-				}
-			}
-			else
-			{
-				Player[i].AgentSprite.setPosition(
-					Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffset[i]-110,
-					Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffset[i]-45);
-			}
-			break;
-		case 180:
-			if(Player[i].Pos==20)
-			{
-				//Free Parking
-				Player[i].AgentSprite.setPosition(
-					Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffsetCorner[i+8]-100,
-					Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffsetCorner[i+8]-100);
-			}
-			else
-			{
-				Player[i].AgentSprite.setPosition(
-					Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffset[i]-65,
-					Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffset[i]-155);
-			}
-			break;
-		case 270:
-			if(Player[i].Pos==30)
-			{
-				//Go to Jail
-				Player[i].AgentSprite.setPosition(
-					Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffsetCorner[i+12],
-					Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffsetCorner[i+12]-100);
-			}
-			else
-			{
-				Player[i].AgentSprite.setPosition(
-					Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffset[i]+45,
-					Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffset[i]-110);
-			}
-			break;
-		default:
-			if(Player[i].Pos==0)
-			{
-				//GO
-				Player[i].AgentSprite.setPosition(
-					Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffsetCorner[i],
-					Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffsetCorner[i]);
-			}
-			else
-			{
-				Player[i].AgentSprite.setPosition(
-					Property[Player[i].Pos].TileOutline.getPosition().x+POSXOffset[i],
-					Property[Player[i].Pos].TileOutline.getPosition().y+POSYOffset[i]);
-			}
-			break;
-		}
-		window.draw(Player[i].AgentSprite);
-	}
-*/
-
 	for(i=0;i<40;i++)
 	{
 		//draw houses/hotel
@@ -1700,16 +1660,14 @@ void DrawGameBoard(void)
 		}
 	}
 
-	//Draw ActivePlayer using debugger placeholder elements
-	window.draw(Debugger[0].ElementText);
+	//Draw ActivePlayer TextBox
+	window.draw(TextBox[0].ElementText);
 
 	//Draw Player Sprites
 	for(i=0;i<4;i++)
 	{
 		window.draw(Player[i].AgentSprite);
 	}
-
-
 
 	//MAIN DRAW Call
 	window.display();
@@ -1882,26 +1840,35 @@ void DrawTradeBoard(void)
 		}
 	}
 
-	Debugger[1].ElementText.setPosition(Button[29].ElementShape.getPosition().x,Button[29].ElementShape.getPosition().y-30);
-	Debugger[1].ElementText.setString(IntToString(Offer.player_GetFunds,0));
+	TextBox[1].ElementText.setPosition(Button[29].ElementShape.getPosition().x,Button[29].ElementShape.getPosition().y-30);
+	TextBox[1].ElementText.setString(IntToString(Offer.player_GetFunds,0));
 
-	Debugger[2].ElementText.setPosition(Button[28].ElementShape.getPosition().x,Button[28].ElementShape.getPosition().y-30);
-	Debugger[2].ElementText.setString(IntToString(Offer.target_GetFunds,0));
+	TextBox[2].ElementText.setPosition(Button[28].ElementShape.getPosition().x,Button[28].ElementShape.getPosition().y-30);
+	TextBox[2].ElementText.setString(IntToString(Offer.target_GetFunds,0));
 
-	Debugger[3].ElementText.setPosition(Button[29].ElementShape.getPosition().x,Button[29].ElementShape.getPosition().y-60);
-	Debugger[3].ElementText.setString(IntToString(Player[TargetPlayer].Money,0));
+	TextBox[3].ElementText.setPosition(Button[29].ElementShape.getPosition().x,Button[29].ElementShape.getPosition().y-60);
+	TextBox[3].ElementText.setString(IntToString(Player[TargetPlayer].Money,0));
 
-	Debugger[4].ElementText.setPosition(Button[28].ElementShape.getPosition().x,Button[28].ElementShape.getPosition().y-60);
-	Debugger[4].ElementText.setString(IntToString(Player[ActivePlayer].Money,0));
+	TextBox[4].ElementText.setPosition(Button[28].ElementShape.getPosition().x,Button[28].ElementShape.getPosition().y-60);
+	TextBox[4].ElementText.setString(IntToString(Player[ActivePlayer].Money,0));
 
-	for(i=1;i<5;i++)
+	if(TargetPlayer!=5)
 	{
-		window.draw(Debugger[i].ElementText);
+		for(i=1;i<5;i++)
+		{
+		window.draw(TextBox[i].ElementText);
+		}
 	}
-
 
 	window.display();
 	window.setFramerateLimit(60);
+}
+
+void DrawTradeOfferAI(void)
+{
+	//Draw board similar to Trade, but only show, onnly two button matter, Yes/No
+
+
 }
 
 void TileNameToTextBox(void)
@@ -2000,7 +1967,9 @@ void PlayerMovement(void)
 {
 
 	MovementActive=1;
-	while(Player[ActivePlayer].AgentSprite.getPosition().x!=Player[ActivePlayer].PosX||Player[ActivePlayer].AgentSprite.getPosition().y!=Player[ActivePlayer].PosY)
+	while(Player[ActivePlayer].AgentSprite.getPosition().x!=Player[ActivePlayer].PosX||
+			Player[ActivePlayer].AgentSprite.getPosition().y!=Player[ActivePlayer].PosY||
+			Player[ActivePlayer].AgentSprite.getRotation()!=Property[Player[ActivePlayer].Pos].TileOutline.getRotation())
 	{
 		//Either X or Y is not aligned with new position, keep moving
 		//if with 5 px of target, just jump to taget
@@ -2033,10 +2002,10 @@ void PlayerMovement(void)
 		{
 			if(Player[ActivePlayer].Rot==0&&Player[ActivePlayer].AgentSprite.getRotation()>180)
 			{
-				Player[ActivePlayer].AgentSprite.rotate(10);
+				Player[ActivePlayer].AgentSprite.rotate(30);
 			}
 			else
-				Player[ActivePlayer].AgentSprite.rotate(-10);
+				Player[ActivePlayer].AgentSprite.rotate(-30);
 		}
 
 
@@ -2239,7 +2208,7 @@ void PlayerActionHandler(int ButtonClicked)
 		break;
 	case 3:
 		//Mortgage
-		MortgageAction(ButtonClicked);
+		//MortgageAction(ButtonClicked);
 		break;
 	default:
 		printf("ActiveFrame Out of Range: (%d)\n",ActiveFrame);//error check
@@ -2254,12 +2223,12 @@ char* IntToString(int BaseNum, int setting)
 	//since built in string library are not working, have to do a lot of manual work
 	//also acts as a fun data processing challenge
 
-	//while Buffer Length is 10 minus 1 for /0 still limit loop for 1 Mil - 1
+	//!!! while Buffer Length is 20 minus 1 for /0 still limit loop for 1 Mil - 1  !!!
 	//can go beyond limit with recursive loop
 
 	//setting is toggle to add "$" to front text string
-	//setting 0 - no addition to number string
-	//setting 1 - addition of "$" to number string
+	//setting 1 - no addition to number string
+	//setting 0 - addition of "$" to number string
 	//setting 2 - addition of "Player " to number string
 
 	//BaseNum=12345;	//debug override
@@ -2271,23 +2240,18 @@ char* IntToString(int BaseNum, int setting)
 	int j=10;	//decimal index
 	int DecimalCount=0;
 
-	if(setting==0)
+	switch(setting)
 	{
-		StringBuffer[0]='$';
+	case 0:
+		strcpy(StringBuffer,"$");
 		i++;
-	}
-
-	if(setting==2)
-	{
-		StringBuffer[0]='P';
-		StringBuffer[1]='l';
-		StringBuffer[2]='a';
-		StringBuffer[3]='y';
-		StringBuffer[4]='e';
-		StringBuffer[5]='r';
-		StringBuffer[6]=' ';
-
+		break;
+	case 2 ... 3:
+		strcpy(StringBuffer,"Player ");
 		i+=7;
+		break;
+	default:
+		break;
 	}
 
 	if(BaseNum<0)
@@ -2334,6 +2298,12 @@ char* IntToString(int BaseNum, int setting)
 
 	//printf("Function:%s\n",Buffer);
 
+	if(setting==3)
+	{
+		strcat(StringBuffer,"'s Turn");
+	}
+
+
 
 /*
 	Funds[0].ElementText.setString
@@ -2352,13 +2322,6 @@ void PropertyHandler(void)
 
 	//get property type
 	//0-Normal,1-Util,2-RR,3-taxes,4-chest,5-chance,6-go,7-jail/visting,8-parking,9-goto jail
-
-	/****BUG TRACKING****/
-	//bug somewhere chest/chance/noticeboard are wring colors/sizes
-	//accept/decline buttons showing when shouldn't
-	//St.Charles Place is bug, NoticeBoard does not update property from Chance/Chest to Pay Rent/Buy
-		//Travel to Property Works, not NoticeBoard, shows the last message that NoticeBoard was set to
-		//Left over data from Chest/Chance updated NB color, not state/message
 
 	int ActiveProperty=Player[ActivePlayer].Pos;
 	NoticeBoard.isVisible=0;
@@ -2452,8 +2415,8 @@ void PropertyHandler(void)
 	case 9:
 	//GO TO JAIL
 		Player[ActivePlayer].inJail=1;
-		//Player[ActivePlayer].inJail=0;		//Temp since Jail is not workin yet
 		Player[ActivePlayer].Pos=10;
+		SetPlayerPosition(0);
 
 		NoticeBoardState=0;
 		break;
@@ -2477,6 +2440,8 @@ int RollDice(void)
 	for(i=0;i<2;i++)
 	{
 		Dice[i].value=((rand()%6)+1);
+		//if(ActivePlayer==0)
+		//	scanf("%d",&Dice[i].value);		//Debug force in dice roll values for human player
 		switch(Dice[i].value)
 		{
 		case 1:
@@ -2539,7 +2504,12 @@ int AI_TURN(void)
 		if(Player[ActivePlayer].hasRolled==0)
 			AI_ButtonClicked=8;
 		else
+		{
+			//AI has rolled Dice and done everything else required from the property, build, trade, mortgage, end turn
+
+
 			AI_ButtonClicked=0;
+		}
 		break;
 	case 1:
 		//NoticeBoard is up for Normal Property
@@ -2607,7 +2577,7 @@ int AI_TURN(void)
 	return AI_ButtonClicked;
 }
 
-void CheckMonopolyStatus(void)
+void CheckMonopolyStatus(int PlayerID)
 {
 	//ActivePlayer.MonopoliesOwned
 	//MonopolyBlockLookUp[8][3]
@@ -2618,14 +2588,14 @@ void CheckMonopolyStatus(void)
 	int m=0;
 	int k=0;
 	int ActiveProperty=0;
-	int BlockCount[8]={0};			//completion status of monopoly
-	int BlockCountMax[8]={0};
+	float BlockCount[8]={0};			//completion status of monopoly
+	float BlockCountMax[8]={0};
 	int PropertiesOwned[40]={0};	//0=GO, shouldn't be modable, isn't yet, but shold never be
 
 
 	for(i=0;i<40;i++)
 	{
-		if(Property[i].Owner==ActivePlayer&&Property[i].Type==0)
+		if(Property[i].Owner==PlayerID&&Property[i].Type==0)
 		{
 			//only build list of properties that support houses
 			PropertiesOwned[j]=i;
@@ -2660,18 +2630,16 @@ void CheckMonopolyStatus(void)
 	//update player data to show completed monopoly block owned
 	for(i=0;i<8;i++)
 	{
-		printf("%d / %d || ",BlockCount[i],BlockCountMax[i]);
-		if(BlockCount[i]==BlockCountMax[i])
-			Player[ActivePlayer].MonopoliesOwned[i]=1;
-		else
-			Player[ActivePlayer].MonopoliesOwned[i]=0;
+		Player[PlayerID].MonopoliesOwned[i]=BlockCount[i]/BlockCountMax[i];
+		//printf("%d / %d || ",BlockCount[i],BlockCountMax[i]);
+		printf("%f ||",Player[PlayerID].MonopoliesOwned[i]);
 	}
 	printf("\n");
 
 	//update build buttons visible (add / sub houses)
 	for(i=0;i<40;i++)
 	{
-		if(Property[i].hasColor==1&&Property[i].Owner==ActivePlayer&&Property[i].Type==0)
+		if(Property[i].hasColor==1&&Property[i].Owner==PlayerID&&Property[i].Type==0)
 		{
 			if(Property[i].HouseCount!=0)
 				Button[(i*2)+31].isVisible=1;
@@ -2690,7 +2658,7 @@ void CheckMonopolyStatus(void)
 	//go through monopolies owned, disable (+/-) buttons
 	for(i=0;i<8;i++)
 	{
-		if(Player[ActivePlayer].MonopoliesOwned[i]==0)
+		if(Player[PlayerID].MonopoliesOwned[i]<0.8)		//change to decimal value to show not only if complete of how much	MonopoliesOwned[i]<.8, avoid FP error
 		{
 			//hide buttons that player does not own full monopolies
 			for(k=0;k<BlockCountMax[i];k++)
@@ -3131,8 +3099,6 @@ void MainBoardAction(int ButtonClicked)
 			{
 				Player[ActivePlayer].hasRolled=0;
 				Player[ActivePlayer].DB_roll=0;
-				if(Player[ActivePlayer].DB_count!=3)
-					Player[ActivePlayer].DB_count=0;
 				ActivePlayer++;
 				if(ActivePlayer>3)
 					ActivePlayer=0;
@@ -3152,7 +3118,7 @@ void MainBoardAction(int ButtonClicked)
 			break;
 		case 3:
 			//Return to Build Menu
-			CheckMonopolyStatus();
+			CheckMonopolyStatus(ActivePlayer);
 			ActiveFrame=1;
 			break;
 		case 4:
@@ -3180,37 +3146,60 @@ void MainBoardAction(int ButtonClicked)
 		case 8:
 			//Roll Dice
 				//Dice Roll Rebuild, with Jail / Double Rolls / Normal Action
+			//in Jila roll 5 times, get out on 5th non-double roll, only when press end turn
 			if(Player[ActivePlayer].hasRolled==0)
 			{
-				if(Player[ActivePlayer].DB_count<3||Player[ActivePlayer].inJail==0)
+				DiceTotalHold=RollDice();
+				if(Player[ActivePlayer].inJail==0)
 				{
-					//PlayerMovement(RollDice());
-					SetPlayerPosition(RollDice());
-					if(Player[ActivePlayer].DB_roll==0)
+					//SetPlayerPosition(RollDice());		//moves player around board, updates pos data
+					if(Player[ActivePlayer].DB_count<2)
 					{
-						Player[ActivePlayer].hasRolled=1;
-						Player[ActivePlayer].DB_count=0;
-
-						Button[0].isVisible=1;
-						Button[8].isVisible=0;
+						SetPlayerPosition(DiceTotalHold);
+						if(Player[ActivePlayer].DB_roll==0)
+						{
+							Player[ActivePlayer].hasRolled=1;
+							Player[ActivePlayer].DB_count=0;
+							Button[0].isVisible=1;
+							Button[8].isVisible=0;
+						}
+						else
+						{
+							Player[ActivePlayer].hasRolled=0;
+							Player[ActivePlayer].DB_count++;
+						}
 					}
 					else
 					{
-						Player[ActivePlayer].hasRolled=0;
-						Player[ActivePlayer].DB_count++;
+						//player has rolled 3 doubles in a roll, on 3rd do right to jail, no action
+						Player[ActivePlayer].inJail=1;
+						Player[ActivePlayer].DB_count=0;
+						Player[ActivePlayer].Pos=10;		//Hard Code 10 as jail, could change to look for first tile that has jail type
+						SetPlayerPosition(0);
+						Player[ActivePlayer].hasRolled=1;
+						Button[0].isVisible=1;
+						Button[8].isVisible=0;
 					}
 				}
 				else
 				{
 					//JAIL, rolled 3 doubles or got sent to JAIL
-					DiceTotalHold=RollDice();
-					if(Player[ActivePlayer].DB_roll==1)
+					if(Player[ActivePlayer].DB_roll==1||Player[ActivePlayer].DB_count>1)
 					{
 						//Player has rolled Double, free to leave
 						Player[ActivePlayer].inJail=0;
 						Player[ActivePlayer].DB_count=0;
 						Player[ActivePlayer].DB_roll=0;
 						SetPlayerPosition(DiceTotalHold);
+						Player[ActivePlayer].hasRolled=1;
+						Button[0].isVisible=1;
+						Button[8].isVisible=0;
+					}
+					else
+					{
+						//Player in jail, did not roll double, stay in jail for max three rolls, 4 move out auto
+						Player[ActivePlayer].DB_count++;
+						Player[ActivePlayer].hasRolled=1;
 					}
 				}
 			}
@@ -3425,7 +3414,7 @@ void TradeAction(int ButtonClicked)
 		//Return to Build Menu
 		Offer.player_GetFunds=0;
 		Offer.target_GetFunds=0;
-		CheckMonopolyStatus();
+		CheckMonopolyStatus(ActivePlayer);
 		ActiveFrame=1;
 	break;
 
@@ -3575,6 +3564,8 @@ int CardAction(int Parm[4])
 	case 7:
 		//GTJ, come back to later
 		Player[ActivePlayer].inJail=1;
+		Player[ActivePlayer].Pos=10;
+		SetPlayerPosition(0);
 		break;
 	default:
 		printf("Chest / Chance Action Type Lookup Failed\n");
@@ -3601,7 +3592,7 @@ void SetPlayerPosition(int DiceTotal)
 	Player[ActivePlayer].Pos+=DiceTotal;
 	if(Player[ActivePlayer].Pos>39)
 	{
-		Player[ActivePlayer].Pos=0;
+		Player[ActivePlayer].Pos-=40;
 		Player[ActivePlayer].Money+=200;
 	}
 
@@ -3655,44 +3646,112 @@ void SetPlayerPosition(int DiceTotal)
 
 	PlayerMovement();
 
-/*	for(i=0;i<40;i++)
+}
+
+/*	AI Section
+ *
+ * Design Notes:
+ *
+ * Accepting Trade Offer from SomeOne:
+ * AI only accept trade if it comes out better, gains > losses
+ * AI will add weight to loss or gain based on Monopoly status 0->1 | 0->2 | 0->3 | 0->4
+ * AI will value cash more if its short below set $ and relative to others
+ *
+ * Making Trade Offer to SomeOne:
+ * AI will value cheaper properties first, have more at lesser value than fewer at greater value
+ * AI will value properties to complete its current collection
+ * AI will stay within current Property Limits
+ * AI will stay within current Money Limits
+ *
+ * Seq of Actions:
+ * -Start of Turn
+ * Roll Dice > Move > Property Action > Loop Until Done. (Board does this automatically)
+ * Remove Houses / Hotel if short on funds
+ * Try to UnMortgage Properties (If have any and enough Funds)
+ * Try to Build
+ * Trade
+ * Try to Build
+ * End Turn
+ * -End of AI TURN
+ *
+ */
+
+
+void AI_MakeTrade(void)
+{
+	int i=0;
+
+	//Sanitize structure from other deals
+	Offer.P_GP_Count=0;
+	Offer.T_GP_Count=0;
+	Offer.player_GetFunds=0;
+	Offer.target_GetFunds=0;
+	for(i=0;i<40;i++)
 	{
-		playerCount=0;
+		Offer.player_GetProp[i]=0;
+		Offer.target_GetProp[i]=0;
+	}
 
-		for(j=0;j<4;j++)
-		{
-			if(Player[j].Pos==i)
-				playerCount++;
-		}
+	//Gen 1 AI, AI picks 1 to 3 rnd properties that it owns and trades with 1 to 3 rnd properties that rnd target owns
 
-		PropRotate=Property[i].TileOutline.getRotation();
-
-		if(i%10==0)
-		{
-			//corners are special
-
-		}
-		else
-		{
-			switch(PropRotate)
-			{
-			case 0:
-
-				break;
-			case 90:
-
-				break;
-			case 180:
-
-				break;
-			case 270:
-
-				break;
-			}
-		}
-	}*/
 
 
 }
 
+void AI_MakeBuild(void)
+{
+	//Looks at monopoly stutus, choose cheap properties are priroites, different from trade that values higher proces proprty
+	int i=0;
+	int TargetBlock=-1;
 
+	int FullBuiltBlock[8]={0};	//checks for block will max houses build
+
+
+
+
+
+
+
+
+	CheckMonopolyStatus(ActivePlayer);
+
+	for(i=0;i<8;i++)
+	{
+		if(Player[ActivePlayer].MonopoliesOwned[i]>0.8)
+		{
+			//	3/3 ownership
+
+		}
+		else
+		{
+			//AI doesn't own complete block, check to see if it own 2/3 or 1/3 to add to wish list to trade for later
+			//AI does not care about RR and Utilities
+			if(Player[ActivePlayer].MonopoliesOwned[i]>0.5)
+			{
+				// 2/3 ownership
+
+			}
+			else
+			{
+				if(Player[ActivePlayer].MonopoliesOwned[i]>0.25)
+				{
+					//	1/3 ownership
+
+				}
+				else
+				{
+					//	0 ownership
+
+				}
+			}
+		}
+	}
+
+
+
+}
+
+void AI_MakeMortgage(void)
+{
+
+}

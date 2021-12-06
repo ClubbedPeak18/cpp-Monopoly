@@ -16,6 +16,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
+#include "GameTypes.hpp"
 
 using namespace sf;
 
@@ -38,7 +39,7 @@ void DrawBuildBoard(void);			//SFML Draw Calls for Building Menu
 void DrawTradeBoard(void);			//SFML Draw Calls for Trading Menu
 void TileNameToTextBox(void);		//WIP for cosmetic upgrade to Property Name Data
 void StartUpPlayer(void);			//Setup for Player Number&Drawing Data
-void PlayerMovement(void);		//Animate Players moving around gameboard
+void PlayerMovement(void);			//Animate Players moving around gameboard
 
 int ButtonHandler(void);			//IN:Global Variables	::start of code clean up
 									//OUT:Returns button number clicked, no button default to '-1' output
@@ -106,146 +107,18 @@ int CardAction(int[4]);				//IN:Card parameters from chance/chest
 void SetPlayerPosition(int);		//IN:Global vars, player pos / Jail / DB State
 									//OUT:SFML Draw calls
 
-
-
 void AI_MakeTrade(void);			//AI will create trade offers, build, future proof to add in mortgage property
 
 void AI_MakeBuild(void);
 
 void AI_MakeMortgage(void);
 
-
-
-//Offset Data for drawing Players on GameBoard
-//int POSXOffset[4]={10,10,35,35};	//10,10,35,35	normal(0-3) , corner(4-7)
-//int POSYOffset[4]={55,80,55,80};	//10,35,10,35
-
-//int POSXOffsetCorner[16]={75,75,50,25,05,05,32,56,06,06,32,56,75,75,50,25};	//Corner offsets, 0-3,4-7,8-11,12-15
-//int POSYOffsetCorner[16]={25,50,75,75,25,50,75,75,56,31,06,06,56,31,05,05};
-
 int MovementX[12]={10,35,10,35,60,80,30,80,5,35,5,35};
 int MovementY[12]={25,25,55,55,80,60,80,30,5,5,35,35};
 
-struct BoardTile
-{
-	char TileName[30];
-	int ID;
-	int BlockID;
-	int Type;		//0-Normal,1-Util,2-RR,3-taxes,4-chest,5-chance,6-go,7-jail/visting,8-parking,9-goto jail
-	int Owner;		//-2 -1 0 1 2 3 		-2:can not be owned, -1 not owned 0-3 player owner
-	int BuyCost;
-	int HouseCost;
-	int HouseCount;
-	int Rent[6];
-	int MortgageValue;
-	int isMortgage;
-
-	sf::Font TileNameFont;
-	sf::Text TileNameText;	//top
-	sf::Text TileNameTextMid;
-	sf::Text TileNameTextBot;
-
-	sf::Font TileCostFont;
-	sf::Text TileCostText;
-	sf::Text TileCostTextBackUp;
-
-	sf::RectangleShape TileOutline;
-	sf::RectangleShape TileBlockColor;
-	sf::RectangleShape TileImage;
-	sf::Texture TileImageTexture;
-
-	sf::RectangleShape TileHouse[4];
-	sf::RectangleShape TileHotel;
-	sf::RectangleShape TileOwnerColor;
-
-	int RGB[3];
-	int hasColor;
-
-	int PosX;
-	int PosY;
-};
-
-struct Agents
-{
-	int ID;
-	int Pos;
-	int Money;
-	int DB_roll;
-	int DB_count;
-	int inJail;
-	int isBankrupt;
-	int hasRolled;
-	int hasAI;
-	float MonopoliesOwned[8]={0};	//dirty trick to track Completed Monopolies, sub 1 to get to LookUpTable array index
-
-	int GetOutJail[2];	//0,1,2 since both chance/chest have one, may have more since chest/chance can be modify
-
-	int PosX;
-	int PosY;
-
-	int VelX;
-	int VelY;
-
-	int Rot;
-
-	int BuildDesireBlock[8]={0};		//Property Block Build desire list
-	int TradeDesireBlock[8]={0};		//Property BLock Trade desire list
-
-	sf::RectangleShape AgentSprite;
-	sf::Texture AgentTexture;
-	sf::Font AgentFont;
-	sf::Text AgentText;
-};
-
-struct Element
-{
-	char ElementString[20];
-	sf::Font ElementFont;
-	sf::Text ElementText;
-	sf::RectangleShape ElementShape;
-	sf::Texture ElementTexture;
-	int PosX;
-	int PosY;
-	int Width;
-	int Height;
-	int isClicked;		//old handle for button click
-	int isValid;		//help set/change element back color
-	int isVisible;		//same as isActive, added to render queue
-	int value;
-};
-
-struct TradeStruct
-{
-	int target_GetProp[30]={0};
-	int target_GetFunds;
-	int player_GetProp[30]={0};
-	int player_GetFunds;
-	int T_GP_Count;		//index # of props in array
-	int P_GP_Count;
-};
-
-struct BoardState
-{
-	float MonopolyState[2][10];	//0-Player making deal	1-player deal is targeting
-	int Funds[2];				//0-(HUMAN)	1-(AI)
-};
 
 //May not use for chest / chance, tie into original idea of using NoticeBoard
-struct GameCard
-{
-	int Num;
-	char Text[50];
-	int Parm[4];		//Parm[0]	Card Action Type: 0move player, 1collect, 2pay, 3collect others, 4pay others, 5property upkeep, 6getout jail, 7goto jail
-						//Parm[1 ... 3]		more details to take action
 
-						//Parm 0 [] [] []		moved fixed number of title, move to property id, move to property type
-						//Parm 5 [] []			house cost, hotel cost
-
-	sf::Text CardText;
-	sf::RectangleShape CardShape;
-	sf::Font TextFont;
-	sf::Texture CardTexture;
-};
 
 /* Frames (Menus):
  *
@@ -256,15 +129,15 @@ struct GameCard
  * get Trade Offer
  */
 
-BoardTile Property[40];
-Agents Player[4];
+//BoardTile Property[40];
+Tile Property[40];
+Agent Player[4];
 
 // Structs used for trade menu and trade evaluation
-BoardTile PropertyDeed[40];
-BoardTile FurtureProperty[40];
-Agents FuturePlayer[4];
+Tile PropertyDeed[40];
+Tile FurtureProperty[40];
+Agent FuturePlayer[4];
 TradeStruct Offer;
-BoardState Board[2];
 
 int ChanceSeq[16];	//card sequence for drawing Chance / Chest
 int ChestSeq[16];
@@ -282,7 +155,6 @@ Element Button[ButtonCount];	//BuToNS to click on
 Element Line[2];		//Draw a line, used for trading menu
 Element Dice[2];		//game dice
 Element PlayerCount;	//displaces current ActivePlayer
-Element Debugger[10];	//debug printout in game window for testing
 Element TextBox[TextBoxCount];	//replace old debugger
 
 Element Funds[4];		//displace player funds
@@ -293,6 +165,11 @@ Element NoticeBoard;	//use for main game board interactions
 
 GameCard CommunityChest[16];
 GameCard Chance[16];
+
+
+Game Foo1(Game);	//tesing
+
+Game gMonopoly;		//Struct struct of entire game, makes passing everything to function easier
 
 
 /*	Game Board Buttons:		3rd rebuild
@@ -3702,16 +3579,10 @@ void AI_MakeBuild(void)
 {
 	//Looks at monopoly stutus, choose cheap properties are priroites, different from trade that values higher proces proprty
 	int i=0;
+	int j=0;
 	int TargetBlock=-1;
 
-	int FullBuiltBlock[8]={0};	//checks for block will max houses build
-
-
-
-
-
-
-
+	//int FullBuiltBlock[8]={0};	//checks for block will max houses build
 
 	CheckMonopolyStatus(ActivePlayer);
 
@@ -3720,29 +3591,15 @@ void AI_MakeBuild(void)
 		if(Player[ActivePlayer].MonopoliesOwned[i]>0.8)
 		{
 			//	3/3 ownership
-
-		}
-		else
-		{
-			//AI doesn't own complete block, check to see if it own 2/3 or 1/3 to add to wish list to trade for later
-			//AI does not care about RR and Utilities
-			if(Player[ActivePlayer].MonopoliesOwned[i]>0.5)
+			if(PropertyPerBlock[i]==3)
 			{
-				// 2/3 ownership
+				//3 props in block
 
 			}
 			else
 			{
-				if(Player[ActivePlayer].MonopoliesOwned[i]>0.25)
-				{
-					//	1/3 ownership
+				//2 props in block
 
-				}
-				else
-				{
-					//	0 ownership
-
-				}
 			}
 		}
 	}
@@ -3755,3 +3612,25 @@ void AI_MakeMortgage(void)
 {
 
 }
+
+/*		experimental redesign work
+
+
+Game Foo1(Game Monopoly)	//tests work, can make project struct and pass around
+{
+	int i=0;
+
+	Monopoly.Player[1].Money-=500;
+	Monopoly.Player[0].Money+=500;
+
+	for(i=0;i<40;i++)
+	{
+		window.draw(Monopoly.Property[i].TileOutline);
+	}
+
+
+
+	return Monopoly;
+}
+
+*/

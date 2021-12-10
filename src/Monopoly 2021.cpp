@@ -68,9 +68,6 @@ void CheckMonopolyStatus(int);		//IN:Player being evaluated
 void HouseBuildBalancer(int);		//IN:Property Player is wanting to build on (ActiveProperty)
 									//OUT:Draw calls and updated house count / player funds / keep house count with +/- 1
 
-char* IntToString(int,int);			//Convert Number data to String Data
-char StringBuffer[20];				//cheap woke around for local buffer within function, produces garbage text without
-
 void PropertyExchange(int);			//IN:AI Response, Offer is Global, but is feed into function
 									//OUT: Update property and money values
 
@@ -148,8 +145,8 @@ int ChestPT=0;
 int Aceleration=1;
 int MovementActive=0;
 
-const int ButtonCount=110;	//Sets how many buttons, goes across many functions
-const int TextBoxCount=20;	//TextBox count
+//const int ButtonCount=110;	//Sets how many buttons, goes across many functions
+//const int TextBoxCount=20;	//TextBox count
 Element Button[ButtonCount];	//BuToNS to click on
 
 Element Line[2];		//Draw a line, used for trading menu
@@ -170,7 +167,6 @@ GameCard Chance[16];
 Game Foo1(Game);	//tesing
 
 Game gMonopoly;		//Struct struct of entire game, makes passing everything to function easier
-
 
 /*	Game Board Buttons:		3rd rebuild
  *	0: End Turn
@@ -312,10 +308,12 @@ int main() {
 					}
 
 					if(((event.key.code>74)&&(event.key.code<85))||((event.key.code>25)&&(event.key.code<36)))
+					{
 						if(event.key.code>74)
 							i=event.key.code-75;
 						else
 							i=event.key.code-26;
+					}
 					switch(CashOfferMode)
 					{
 					case 1:
@@ -463,6 +461,17 @@ void StartUpPropertyName(void)
 
 	//open file to get names, read in charactors to long buffer unit end of file
 	fp=fopen("bits/ini_values/Names.txt","r");
+
+
+//	while(!feof(fp))
+//	{
+//		fscanf(fp,"%c",&Buffer[j]);
+//		printf("%c",Buffer[j]);
+//		system("PAUSE");
+//		j++;
+//	}
+//	fclose(fp);
+
 
 	for(i=0;i<600;i++)
 	{
@@ -1688,32 +1697,35 @@ void DrawTradeBoard(void)
 		window.draw(Line[i].ElementShape);
 	}
 
-	for(i=27;i<30;i++)
+	if(Button[9].isVisible==1)
 	{
-		if(i==27)
+		for(i=27;i<30;i++)
 		{
-			window.draw(Button[9].ElementShape);
-			window.draw(Button[9].ElementText);
-		}
-		else
-		{
-			switch(CashOfferMode)
+			if(i==27)
 			{
-			case 1:
-				Button[29].ElementShape.setFillColor(sf::Color::Green);
-				Button[28].ElementShape.setFillColor(sf::Color::White);
-				break;
-			case 2:
-				Button[29].ElementShape.setFillColor(sf::Color::White);
-				Button[28].ElementShape.setFillColor(sf::Color::Green);
-				break;
-			default:
-				Button[29].ElementShape.setFillColor(sf::Color::White);
-				Button[28].ElementShape.setFillColor(sf::Color::White);
-				break;
+				window.draw(Button[9].ElementShape);
+				window.draw(Button[9].ElementText);
 			}
-			window.draw(Button[i].ElementShape);
-			window.draw(Button[i].ElementText);
+			else
+			{
+				switch(CashOfferMode)
+				{
+				case 1:
+					Button[29].ElementShape.setFillColor(sf::Color::Green);
+					Button[28].ElementShape.setFillColor(sf::Color::White);
+					break;
+				case 2:
+					Button[29].ElementShape.setFillColor(sf::Color::White);
+					Button[28].ElementShape.setFillColor(sf::Color::Green);
+					break;
+				default:
+					Button[29].ElementShape.setFillColor(sf::Color::White);
+					Button[28].ElementShape.setFillColor(sf::Color::White);
+					break;
+				}
+				window.draw(Button[i].ElementShape);
+				window.draw(Button[i].ElementText);
+			}
 		}
 	}
 
@@ -2093,103 +2105,6 @@ void PlayerActionHandler(int ButtonClicked)
 	}
 
 
-}
-
-char* IntToString(int BaseNum, int setting)
-{
-	//since built in string library are not working, have to do a lot of manual work
-	//also acts as a fun data processing challenge
-
-	//!!! while Buffer Length is 20 minus 1 for /0 still limit loop for 1 Mil - 1  !!!
-	//can go beyond limit with recursive loop
-
-	//setting is toggle to add "$" to front text string
-	//setting 1 - no addition to number string
-	//setting 0 - addition of "$" to number string
-	//setting 2 - addition of "Player " to number string
-
-	//BaseNum=12345;	//debug override
-	//setting=1;
-
-	//char Buffer[10];	//dont have to append /0 at the end when zero entire buffer from start
-
-	int i=0;	//index count
-	int j=10;	//decimal index
-	int DecimalCount=0;
-
-	switch(setting)
-	{
-	case 0:
-		strcpy(StringBuffer,"$");
-		i++;
-		break;
-	case 2 ... 3:
-		strcpy(StringBuffer,"Player ");
-		i+=7;
-		break;
-	default:
-		break;
-	}
-
-	if(BaseNum<0)
-	{
-		//ABS values, add ( - ) to string,	fixed long running bug of neg numbers breaking this
-		BaseNum=abs(BaseNum);
-		StringBuffer[i]='-';
-		i++;
-	}
-
-	while(BaseNum%j!=BaseNum)
-	{
-		//if the number is 9 or less then this will get skipped
-		j*=10;
-		DecimalCount++;
-	}
-
-	while(DecimalCount>0)
-	{
-		//Decimal is greater than 0, 10's and above
-		//	( Num % ( T * 10 ) - Num % T ) / T = H		T= Ten's Factor, H=output, Num=input	T=(10^DecimalCount)
-		// Int to ASCII Nun+48
-
-		int T=DecimalCount;
-		int Num=BaseNum;
-		double Power=pow(10,T);
-		int Tens=Power;			//convert double to int for modulus(%) to work
-		int ResultTop=Num%(Tens*10);
-		int ResultBot=Num%(Tens);
-
-		int result=(ResultTop-ResultBot)/(Tens);
-
-		//printf("DC:%d : %d %d %d \n",DecimalCount,ResultTop,ResultBot,result);
-
-		StringBuffer[i]=result+48;
-		DecimalCount--;
-		i++;
-
-	}
-	//handle 1's
-	StringBuffer[i]=(BaseNum%10)+48;
-	i++;
-	StringBuffer[i]='\0';
-
-	//printf("Function:%s\n",Buffer);
-
-	if(setting==3)
-	{
-		strcat(StringBuffer,"'s Turn");
-	}
-
-
-
-/*
-	Funds[0].ElementText.setString
-
-	fscanf(fp,"%s",&buffer[0]);
-	Property[i].TileCostText.setString(buffer);
-	Property[i].TileCostTextBackUp.setString(Property[i].TileCostText.getString());
-*/
-	return StringBuffer;
 }
 
 void PropertyHandler(void)
@@ -2710,7 +2625,7 @@ void TradeOfferBuilder(int DeedClicked)
 	//check to see if there are any properties within the deal structure
 	//if true, hide other players that could be selected for trading target
 	//else, render the other players so ActivePlayer can show around
-	if(Offer.T_GP_Count!=0 || Offer.P_GP_Count!=0)
+	if(Offer.P_GP_Count!=0)
 	{
 		//There are properties in trade offer, could be give or get
 		for(i=0;i<4;i++)
@@ -2724,6 +2639,8 @@ void TradeOfferBuilder(int DeedClicked)
 		{
 			Button[i].isVisible=0;
 		}
+		Button[9].isVisible=1;
+		// 28, 29, 9 hide
 	}
 	else
 	{
@@ -2735,6 +2652,7 @@ void TradeOfferBuilder(int DeedClicked)
 		{
 			Button[i].isVisible=1;
 		}
+		Button[9].isVisible=0;
 	}
 
 
@@ -3011,6 +2929,7 @@ void MainBoardAction(int ButtonClicked)
 			}
 			TargetPlayer=5;
 			ActiveFrame=2;
+			Button[9].isVisible=0;
 			break;
 		case 6:
 			//Quit Game
@@ -3229,6 +3148,7 @@ void BuildAction(int ButtonClicked)
 		TargetPlayer=5;
 		CashOfferMode=0;
 		ActiveFrame=2;
+		Button[9].isVisible=0;
 		break;
 	case 32 ... 109:
 		if(ButtonClicked%2==1)

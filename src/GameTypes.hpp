@@ -12,6 +12,11 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/System.hpp>
 #include <SFML/Graphics/Rect.hpp>
+#include <string.h>
+#include <math.h>
+
+const int ButtonCount=110;
+const int TextBoxCount=20;
 
 class Tile
 {
@@ -89,7 +94,7 @@ class Agent
 		int isBankrupt;
 		int hasRolled;
 		int hasAI;
-		float MonopoliesOwned[8]={0};	//dirty trick to track Completed Monopolies, sub 1 to get to LookUpTable array index
+		float MonopoliesOwned[8];	//dirty trick to track Completed Monopolies, sub 1 to get to LookUpTable array index
 
 		int GetOutJail[2];	//0,1,2 since both chance/chest have one, may have more since chest/chance can be modify
 
@@ -101,8 +106,8 @@ class Agent
 
 		int Rot;
 
-		int BuildDesireBlock[8]={0};		//Property Block Build desire list
-		int TradeDesireBlock[8]={0};		//Property BLock Trade desire list
+		int BuildDesireBlock[8];		//Property Block Build desire list
+		int TradeDesireBlock[8];		//Property BLock Trade desire list
 
 		sf::RectangleShape AgentSprite;
 		sf::Texture AgentTexture;
@@ -158,21 +163,29 @@ class GameCard
 
 class Game
 {
-	public:
+
+public:
 		Tile Property[40];
 		Tile PropertyDeed[40];
 		Agent Player[4];
 		TradeStruct Offer;
 
-		Element Button[110];
-		Element TextBox[20];
+		Element Button[ButtonCount];
+		Element TextBox[TextBoxCount];
 		Element Line[2];
 		Element Dice[2];
 		Element PlayerCount;
 		Element Funds[4];
 		Element Cards[2];
 		Element NoticeBoard;
+
+		int NoticeBoardState;
 };
+
+
+
+sf::String IntToString(int,int);
+
 
 
 #endif /* GAMETYPES_HPP_ */
